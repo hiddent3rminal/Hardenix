@@ -1,5 +1,6 @@
 import os
-
+from core.logger import logger
+from core import runner
 
 CONFIG_PATHS = [
 
@@ -13,16 +14,34 @@ CONFIG_PATHS = [
 
 ]
 
+SYSCTL_SETTINGS = {
+    "net.ipv4.ip_forward": "0",
+    "net.ipv4.conf.all.accept_redirects": "0",
+    "net.ipv4.conf.default.accept_redirects": "0",
+    "net.ipv4.conf.all.send_redirects": "0",
+    "net.ipv4.conf.default.send_redirects": "0",
+    "net.ipv4.conf.all.accept_source_route": "0",
+    "net.ipv4.conf.default.accept_source_route": "0",
+    "net.ipv4.conf.all.rp_filter": "1",
+    "net.ipv4.conf.default.rp_filter": "1",
+    "net.ipv4.tcp_syncookies": "1"
+}
+
 
 
 def check_existence():
 
+    found = False
+
     for path in CONFIG_PATHS:
 
         if os.path.exists(path):
-            return True
+            logger.info(f"{path} found.")
+            found = True
+        else:
+            logger.warning(f"{path} not found.")
 
-    return False
+    return found
 
 
 
@@ -34,8 +53,11 @@ def install():
 
 def configure():
 
-    pass
-
+    config = {
+        "file": "/etc/sysctl.d/99-hardenix.conf",
+        "settings": SYSCTL_SETTINGS
+    }
+    runner.apply_sysctl(config)
 
 
 def backup():

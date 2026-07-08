@@ -1,5 +1,5 @@
 import os
-
+from core.logger import logger
 
 CONFIG_PATHS = [
     "/etc/mysql"
@@ -10,8 +10,10 @@ def check_existence():
 
     for path in CONFIG_PATHS:
         if os.path.exists(path):
+            logger.info("configuration file exist!")
             return True
-
+        else:
+            logger.warning(f"configuration file could not found! {CONFIG_PATHS}")
     return False
 
 

@@ -1,6 +1,7 @@
 # IMPORTING LIBRARIES
 
 from workflow.quick_setup import quick_basic_hardening
+from core.logger import logger
 import os 
 import sys
 import time
@@ -32,10 +33,13 @@ ascii_art = "\033[38;5;39m" + r"""
 
 # FUNCTION TO CHECK PRIVILAGE
 def CheckPrivilage():
+    logger.info("Hardenix Started!")
     if os.getuid() != 0 :
         print("❌ Hardenix Must Be Run As Root (sudo).\n\n➡️ Try: sudo python3 main.py")
+        logger.critical("The Hardenix Did Not Start with Root.")
         sys.exit(1)
     else :
+        logger.info("Hardenix started as a root and it passed CheckPrivilage Function")
         DetectOS()
 
 
@@ -47,6 +51,7 @@ def DetectOS():
     # Read OS info
     if not os.path.exists(os_release):
         print("❌ Cannot detect OS: /etc/os-release not found.")
+        logger.warning(f"Hardenix Could not find the {os_release} file to detect OS")
         return
 
     with open(os_release, "r") as f:
@@ -71,7 +76,9 @@ def DetectOS():
 
     print(ascii_art)
     print(f"Hardenix initialized on {name} ({family} family) ✅")
+    logger.info("")
 # moving to main menu function     
+    logger.info("OS detection was done and move on to main menu")
     MainMenu()
 
 
@@ -91,6 +98,7 @@ def MainMenu():
 
         if not choice.isdigit():
             print("❌ Please enter a valid number!\n")
+            logger.warning("User Selected Invalid menu")
             continue
 
         choice = int(choice)
@@ -104,7 +112,7 @@ def MainMenu():
 
         if choice == 1:
             quick_basic_hardening()
-            
+            logger.info("User selected 'quick basic hardening method and specific file parsed! ' ")
         elif choice == 2:
             print('do')
             time.sleep(3)
@@ -137,16 +145,3 @@ def MainMenu():
 
 CheckPrivilage()
 
-
-
-
-
-
-
-
-
-
-
-
-
-CheckPrivilage()

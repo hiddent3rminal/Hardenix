@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime
-
+from core.logger import logger
 from modules import apache
 from modules import bind9
 from modules import mysql
@@ -32,6 +32,7 @@ SERVICES = [
 
 def create_backup_folder():
 
+    logger.info(f"Backup folder created succesfully named {BACKUP_ROOT}")
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     backup_dir = os.path.join(
@@ -50,6 +51,8 @@ def create_backup_folder():
 
 def copy_config(source, destination):
 
+    logger.info("Config files copied to Backup folder succefully")
+    logger.warning(f"config file path could not found or does not exist {source}")
     if not os.path.exists(source):
 #        print(f"[!] Not found: {source}")
         return False
@@ -75,18 +78,19 @@ def copy_config(source, destination):
 
 
 #        print(f"[+] Copied: {source}")
+        logger.info(f"{source} configuration file copied!")
 
         return True
 
 
     except PermissionError:
-
+        logger.error("Hardenix Doesnt have enough permission to access configuration file")
 #        print(f"[!] Permission denied: {source}")
         return False
 
 
     except Exception as e:
-
+        logger.exception("Copying Failed!")
         print(
 #            f"[!] Error copying {source}: {e}"
         )
@@ -101,7 +105,8 @@ def create_backup():
     backup_dir = create_backup_folder()
 
 
-    print("\nStarting Hardenix Backup\n")
+    print("\nStarting Hardenix Backup\n")  
+    logger.info("Backup Started!")
 
 
     for service in SERVICES:
@@ -158,6 +163,7 @@ def create_backup():
     print(
         "\nBackup Finished:"
     )
+    logger.info("Back Up Done Succesfully")
 
     print(
         backup_dir
@@ -182,6 +188,7 @@ def compress_folder(folder):
     # print(
     #     f"Compressed: {archive}"
     # )
+    logger.info("Backup folder succesfully compressed")
 
     return archive
 

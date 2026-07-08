@@ -1,17 +1,36 @@
-# import logging
+import logging
+import os
+import sys
 
-# logger = logging.getLogger("hardenix")
+# Create logs directory
+os.makedirs("logs", exist_ok=True)
 
+# Create logger
+logger = logging.getLogger("Hardenix")
+logger.setLevel(logging.DEBUG)
 
-# def setup_logger():
-#     logger.setLevel(logging.INFO)
+# Prevent duplicate handlers
+if not logger.handlers:
 
-#     formatter = logging.Formatter(
-#         "[%(asctime)s] [%(levelname)s] %(message)s",
-#         "%Y-%m-%d %H:%M:%S"
-#     )
+    # Console output
+    # console_handler = logging.StreamHandler(sys.stdout)
+    # console_handler.setLevel(logging.INFO)
 
-#     file_handler = logging.FileHandler("hardenix.log")
-#     file_handler.setFormatter(formatter)
+    # Log file
+    file_handler = logging.FileHandler(
+        "logs/hardenix.log",
+        encoding="utf-8"
+    )
+    file_handler.setLevel(logging.DEBUG)
 
-#     logger.addHandler(file_handler)
+    # Log format
+    formatter = logging.Formatter(
+        "[%(asctime)s] [%(levelname)s] %(message)s",
+        "%Y-%m-%d %H:%M:%S"
+    )
+
+    # console_handler.setFormatter(formatter)
+    file_handler.setFormatter(formatter)
+
+    # logger.addHandler(console_handler)
+    logger.addHandler(file_handler)
