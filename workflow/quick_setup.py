@@ -1,10 +1,8 @@
 from modules import ssh
 from modules import ufw
 from modules import fail2ban
-from modules import timezone
 from modules import network
-from core.logger import logger
-import time
+from core import logger
 from core import backup
 from core import status
 

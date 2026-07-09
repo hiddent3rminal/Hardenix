@@ -1,7 +1,7 @@
 # IMPORTING LIBRARIES
 
-from workflow.quick_setup import quick_basic_hardening
-from core.logger import logger
+from workflow import quick_setup
+from core import logger
 import os 
 import sys
 import time
@@ -111,24 +111,30 @@ def MainMenu():
 
 
         if choice == 1:
-            quick_basic_hardening()
+    
+            quick_setup.quick_basic_hardening()
             logger.info("User selected 'quick basic hardening method and specific file parsed! ' ")
+        
         elif choice == 2:
             print('do')
             time.sleep(3)
             clear_screen()
+        
         elif choice == 3:
             print('se')
             time.sleep(3)
             clear_screen()
+        
         elif choice == 4:
             print('chahar')
             time.sleep(3)
             clear_screen()
+        
         elif choice == 5:
             print('panj')
             time.sleep(3)
             clear_screen()
+        
         elif choice == 6:
             print("Exiting ...")
             time.sleep(3)

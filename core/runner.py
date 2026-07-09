@@ -1,4 +1,4 @@
-from core.logger import logger
+from core import logger
 import subprocess
 
 

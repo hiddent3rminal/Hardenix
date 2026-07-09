@@ -1,5 +1,5 @@
 import os 
-from core.runner import run_command
+from core import runner
 
 def check_existence():
     return False

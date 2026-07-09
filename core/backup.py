@@ -1,7 +1,7 @@
 import os
 import shutil
 from datetime import datetime
-from core.logger import logger
+from core import logger
 from modules import apache
 from modules import bind9
 from modules import mysql

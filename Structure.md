@@ -160,18 +160,27 @@
     🗎 quick_setup.py
 
 📁 Hardenix_Backup
-
+    
+    just store ziped backup file
 
 📁 logs
-
+    
+    just store log files 
 
 
 🗎 main.py
 
+    This file is Just a user interface and project starts from here
+
 🗎 requirements.txt
+
+    before running project run 'python3 -m pip install -r requirements.txt'
+
 
 🗎 README.md
 
 🗎 .gitignore
 
 🗎 License
+
+    This Project has MIT license so easily use it , chnage it or improve it 

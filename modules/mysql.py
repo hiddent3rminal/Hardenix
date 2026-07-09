@@ -1,5 +1,5 @@
 import os
-from core.logger import logger
+from core import logger
 
 CONFIG_PATHS = [
     "/etc/mysql"
