@@ -9,7 +9,8 @@ def check_update():
 
 
 def update():
-    pass
+
+    runner.run_command("sudo apt update && apt upgrade -y")
 
 
 

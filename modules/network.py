@@ -40,10 +40,10 @@ def check_existence():
     for path in CONFIG_PATHS:
 
         if os.path.exists(path):
-            logger.info(f"{path} found.")
+            logger.logger.info(f"{path} found.")
             found = True
         else:
-            logger.warning(f"{path} not found.")
+            logger.logger.warning(f"{path} not found.")
 
     return found
 
