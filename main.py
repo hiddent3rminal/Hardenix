@@ -91,7 +91,8 @@ def MainMenu():
         print("3️⃣ ) Install A Specific Service")
         print("4️⃣ ) Backup / Restore Configuration")
         print("5️⃣ ) System Status Summary")
-        print("6️⃣ ) Exit")
+        print("6️⃣ ) Check New Module Stracture")
+        print("7️⃣ ) Exit")
 
         choice = input("Select An Option (1-6): ").strip()
 
@@ -134,8 +135,13 @@ def MainMenu():
             print('panj')
             time.sleep(3)
             clear_screen()
-        
+
         elif choice == 6:
+            print('shish')
+            time.sleep(3)
+            clear_screen()
+
+        elif choice == 7:
             print("Exiting ...")
             time.sleep(3)
             clear_screen()
