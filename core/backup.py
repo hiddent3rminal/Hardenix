@@ -1,14 +1,10 @@
+# importing libraries
+
 import os
 import shutil
 from datetime import datetime
 from core import logger
-from modules import apache
-from modules import bind9
-from modules import mysql
 from modules import network
-from modules import samba
-from modules import ntp
-from modules import openvpn
 from modules import ufw
 from modules import ssh
 
@@ -17,22 +13,18 @@ from modules import ssh
 BACKUP_ROOT = "Hardenix_Backup"
 
 
+
+# list of the modules should backup 
 SERVICES = [
     ssh,
-    apache,
-    bind9,
-    mysql,
     network,
-    samba,
-    ntp,
-    openvpn,
     ufw
 ]
 
 
 def create_backup_folder():
 
-    logger.info(f"Backup folder created succesfully named {BACKUP_ROOT}")
+# get the date and time for file name 
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     backup_dir = os.path.join(
@@ -45,16 +37,18 @@ def create_backup_folder():
         exist_ok=True
     )
 
+    logger.logger.info(f"Backup folder created successfully named {backup_dir}")
+
     return backup_dir
 
 
 
 def copy_config(source, destination):
 
-    logger.info("Config files copied to Backup folder succefully")
-    logger.warning(f"config file path could not found or does not exist {source}")
+
     if not os.path.exists(source):
-#        print(f"[!] Not found: {source}")
+        logger.logger.warning(f"config file path could not found or does not exist {source}")
+
         return False
 
 
@@ -68,6 +62,7 @@ def copy_config(source, destination):
                 dirs_exist_ok=True
             )
 
+            logger.logger.info("Config files copied to Backup folder succefully")
 
         elif os.path.isfile(source):
 
@@ -77,22 +72,21 @@ def copy_config(source, destination):
             )
 
 
-#        print(f"[+] Copied: {source}")
-        logger.info(f"{source} configuration file copied!")
+
+            logger.logger.info(f"{source} configuration file copied!")
 
         return True
 
 
     except PermissionError:
-        logger.error("Hardenix Doesnt have enough permission to access configuration file")
-#        print(f"[!] Permission denied: {source}")
+        logger.logger.error("Hardenix Doesnt have enough permission to access configuration file")
         return False
 
 
     except Exception as e:
-        logger.exception("Copying Failed!")
+        logger.logger.exception("Copying Failed!")
         print(
-#            f"[!] Error copying {source}: {e}"
+            f"[!] Error copying {source}: {e}"
         )
 
         return False
@@ -106,7 +100,7 @@ def create_backup():
 
 
     print("\nStarting Hardenix Backup\n")  
-    logger.info("Backup Started!")
+    logger.logger.info("Backup Started!")
 
 
     for service in SERVICES:
@@ -134,8 +128,12 @@ def create_backup():
                 exist_ok=True
             )
 
+            try :
+                paths = service.backup() or []
 
-            paths = service.backup()
+            except Exception:
+                logger.logger.exception(f"{service_name} backup failed")
+                continue
 
 
             for path in paths:
@@ -163,7 +161,7 @@ def create_backup():
     print(
         "\nBackup Finished:"
     )
-    logger.info("Back Up Done Succesfully")
+    logger.logger.info("Back Up Done Succesfully")
 
     print(
         backup_dir
@@ -188,7 +186,7 @@ def compress_folder(folder):
     # print(
     #     f"Compressed: {archive}"
     # )
-    logger.info("Backup folder succesfully compressed")
+    logger.logger.info("Backup folder successfully compressed")
 
     return archive
 
