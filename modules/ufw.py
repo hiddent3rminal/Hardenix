@@ -12,10 +12,10 @@ def check_existence():
     # Check whether the UFW configuration directory exists before attempting a backup.
     for path in CONFIG_PATHS:
         if os.path.exists(path):
-            logger.info("configuration file Exist!")
+            logger.logger.info("configuration file Exist!")
             return True
         else:
-            logger.warning(f"configuration file could not found! {CONFIG_PATHS}")
+            logger.logger.warning(f"configuration file could not found! {CONFIG_PATHS}")
     return False
 
 
