@@ -6,7 +6,6 @@ def run_command(command):
 
     try:
 
-        logger.debug(f"Executing command: {' '.join(command)}")
 
         result = subprocess.run(
             command,
@@ -15,24 +14,24 @@ def run_command(command):
             text=True
         )
 
-        logger.debug(f"Command executed successfully: {' '.join(command)}")
+        logger.logger.debug(f"Command executed successfully: {' '.join(command)}")
 
         return result
 
     except PermissionError:
-        logger.exception(f"Permission denied while executing command: {' '.join(command)}")
+        logger.logger.exception(f"Permission denied while executing command: {' '.join(command)}")
         return None
 
     except subprocess.CalledProcessError:
-        logger.exception(f"Command failed: {' '.join(command)}")
+        logger.logger.exception(f"Command failed: {' '.join(command)}")
         return None
 
     except FileNotFoundError:
-        logger.exception(f"Command not found: {command[0]}")
+        logger.logger.exception(f"Command not found: {command[0]}")
         return None
 
     except Exception:
-        logger.exception(f"Unexpected error while executing command: {' '.join(command)}")
+        logger.logger.exception(f"Unexpected error while executing command: {' '.join(command)}")
         return None
 
 
@@ -40,7 +39,7 @@ def apply_sysctl(config):
 
     try:
 
-        logger.info(f"Writing sysctl configuration to {config['file']}")
+        logger.logger.info(f"Writing sysctl configuration to {config['file']}")
 
         with open(config["file"], "w") as file:
 
@@ -48,25 +47,25 @@ def apply_sysctl(config):
 
             for key, value in config["settings"].items():
 
-                logger.debug(f"Setting {key} = {value}")
+                logger.logger.debug(f"Setting {key} = {value}")
 
                 file.write(f"{key} = {value}\n")
 
         if run_command(["sysctl", "--system"]) is None:
             return False
 
-        logger.info("Network hardening applied successfully.")
+        logger.logger.info("Network hardening applied successfully.")
 
         return True
 
     except PermissionError:
-        logger.exception("Root privileges are required to write the sysctl configuration.")
+        logger.logger.exception("Root privileges are required to write the sysctl configuration.")
         return False
 
     except KeyError as e:
-        logger.exception(f"Missing configuration key: {e}")
+        logger.logger.exception(f"Missing configuration key: {e}")
         return False
 
     except Exception:
-        logger.exception("Failed to apply network hardening.")
+        logger.logger.exception("Failed to apply network hardening.")
         return False
