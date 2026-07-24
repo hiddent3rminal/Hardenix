@@ -2,6 +2,7 @@ import os
 from core import logger
 from core import runner
 
+# Network-related configuration files that should be considered for backup or hardening.
 CONFIG_PATHS = [
 
     "/etc/netplan",
@@ -14,6 +15,7 @@ CONFIG_PATHS = [
 
 ]
 
+# Default sysctl values used by the hardening configuration.
 SYSCTL_SETTINGS = {
     "net.ipv4.ip_forward": "0",
     "net.ipv4.conf.all.accept_redirects": "0",
@@ -31,6 +33,8 @@ SYSCTL_SETTINGS = {
 
 def check_existence():
 
+    # Return True if at least one expected network config path exists.
+    # This helps the backup engine decide whether the service has anything to back up.
     found = False
 
     for path in CONFIG_PATHS:
@@ -53,6 +57,7 @@ def install():
 
 def configure():
 
+    # Build the configuration payload for sysctl hardening and hand it to the runner.
     config = {
         "file": "/etc/sysctl.d/99-hardenix.conf",
         "settings": SYSCTL_SETTINGS
@@ -62,6 +67,7 @@ def configure():
 
 def backup():
 
+    # Return the list of paths that should be copied into the backup archive.
     return CONFIG_PATHS
 
 
@@ -74,4 +80,4 @@ def restore():
 
 def status():
 
-    pass
+    runner.run_command("ping -c 4 google.com")

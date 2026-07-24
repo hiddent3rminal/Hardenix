@@ -1,3 +1,4 @@
+# importing libraries
 from modules import ssh
 from modules import ufw
 from modules import fail2ban
@@ -6,10 +7,12 @@ from core import logger
 from core import backup
 from core import status
 
+# main fucntion to run the sorted modules step by step 
+
 def quick_basic_hardening():
 
     print("Starting Quick Basic Hardening ...")
-    logger.info("Quick Basic Hardening Started!")
+    logger.logger.debug("Quick Basic Hardening Started!")
     
     backup.create_backup()
     
@@ -22,3 +25,4 @@ def quick_basic_hardening():
     ufw.configure()
   
     status.show_summary()
+

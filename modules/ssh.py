@@ -1,6 +1,7 @@
 import os
 from core import logger
 
+# SSH configuration directory that should be included in backups.
 CONFIG_PATHS = [
 
     "/etc/ssh"
@@ -11,6 +12,7 @@ CONFIG_PATHS = [
 
 def check_existence():
 
+    # Check whether the SSH configuration directory exists before attempting a backup.
     for path in CONFIG_PATHS:
 
         if os.path.exists(path):
@@ -36,6 +38,7 @@ def configure():
 
 def backup():
 
+    # Return the configured path that the backup engine should copy.
     return CONFIG_PATHS
 
 

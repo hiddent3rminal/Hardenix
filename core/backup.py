@@ -1,4 +1,5 @@
-# importing libraries
+# Backup engine for collecting configuration files from security-related modules.
+# Each service module exposes a simple interface: existence check, backup paths, and optional restore/status behavior.
 
 import os
 import shutil
@@ -9,12 +10,11 @@ from modules import ufw
 from modules import ssh
 
 
-# Backup location
+# Root directory where all timestamped backup folders will be created.
 BACKUP_ROOT = "Hardenix_Backup"
 
 
-
-# list of the modules should backup 
+# List of service modules that should be included in the backup process.
 SERVICES = [
     ssh,
     network,
@@ -24,7 +24,8 @@ SERVICES = [
 
 def create_backup_folder():
 
-# get the date and time for file name 
+    # Create a unique backup folder name using the current timestamp.
+    # This avoids overwriting older backups and makes each run easy to identify.
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
 
     backup_dir = os.path.join(
@@ -45,7 +46,8 @@ def create_backup_folder():
 
 def copy_config(source, destination):
 
-
+    # Copy a single file or an entire directory into the backup destination.
+    # The destination is usually a service-specific folder inside the timestamped backup root.
     if not os.path.exists(source):
         logger.logger.warning(f"config file path could not found or does not exist {source}")
 
@@ -95,7 +97,7 @@ def copy_config(source, destination):
 
 def create_backup():
 
-
+    # Create the main backup directory first, then process every registered service.
     backup_dir = create_backup_folder()
 
 
@@ -105,7 +107,7 @@ def create_backup():
 
     for service in SERVICES:
 
-
+        # Use the module name as the folder name inside the backup root.
         service_name = service.__name__.split(".")[-1]
 
 
@@ -175,7 +177,7 @@ def create_backup():
 
 def compress_folder(folder):
 
-
+    # Create a zip archive of the completed backup folder for easier storage or transfer.
     archive = shutil.make_archive(
         folder,
         "zip",
@@ -195,12 +197,14 @@ def compress_folder(folder):
 
 def create_metadata():
 
+    # Placeholder for future metadata creation such as backup ID, timestamp summary, or manifest details.
     pass
 
 
 
 if __name__ == "__main__":
 
+    # Run the backup workflow when this script is executed directly.
     backup_path = create_backup()
 
     compress_folder(
