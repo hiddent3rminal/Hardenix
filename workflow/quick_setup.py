@@ -3,6 +3,7 @@ from modules import ssh
 from modules import ufw
 from modules import fail2ban
 from modules import network
+from modules import timezone
 from core import logger
 from core import backup
 from core import status
@@ -20,6 +21,8 @@ def quick_basic_hardening():
 
     ssh.configure()
 
+    timezone.configure()
+    
     fail2ban.configure()
 
     ufw.configure()
