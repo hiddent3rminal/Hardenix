@@ -7,6 +7,21 @@ import shutil
 import ipaddress
 import yaml
 
+NAME = "network"
+
+VERSION = "1.0.0"
+
+DESCRIPTION = "network settings management Module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+SERVICES = []
+
+PACKAGES = []
+
 # Network-related configuration files that should be considered for backup or hardening.
 CONFIG_PATHS = [
 
@@ -16,11 +31,13 @@ CONFIG_PATHS = [
 
     "/etc/hosts",
 
-    "/etc/hostname"
+    "/etc/hostname",
 
+    "/etc/systemd/resolved.conf"
 ]
 
 # Default sysctl values used by the hardening configuration.
+# These settings disable common IPv4 attack vectors and improve host hardening.
 SYSCTL_SETTINGS = {
     "net.ipv4.ip_forward": "0",
     "net.ipv4.conf.all.accept_redirects": "0",
@@ -35,50 +52,116 @@ SYSCTL_SETTINGS = {
 }
 
 
-
+# Main and default functions
 def check_existence():
 
-    # Return True if at least one expected network config path exists.
-    # This helps the backup engine decide whether the service has anything to back up.
+    # Check whether network configuration files exist.
+    # Return True if at least one configuration path exists.
+
     found = False
 
+    # Scan every known network path and record whether it exists.
     for path in CONFIG_PATHS:
 
         if os.path.exists(path):
-            logger.logger.info(f"{path} found.")
+
+            logger.logger.debug(
+                f"Network config found: {path}"
+            )
+
             found = True
+
         else:
-            logger.logger.warning(f"{path} not found.")
+
+            logger.logger.debug(
+                f"Network config missing: {path}"
+            )
+
+
+    # Report whether the host has any detectable network configuration files.
+    if found:
+        logger.logger.info(
+            "Network configuration detected."
+        )
+
+    else:
+        logger.logger.warning(
+            "No network configuration files found."
+        )
+
 
     return found
 
 
 
+
 def install():
 
-    pass
+    # This module does not require a separate installation step.
+    logger.logger.info(
+        "Network module does not require installation."
+    )
+
+    return True
 
 
 
 def configure():
 
-    logger.logger.info("network configuration started!")
+    # Start the full network configuration workflow.
+    logger.logger.info(
+        "Network configuration started."
+    )
 
-    if not configure_hostname():
+    try:
+
+        # Apply hostname, DNS, static IP, and kernel hardening in order.
+        if not configure_hostname():
+            logger.logger.error(
+                "Hostname configuration failed."
+            )
+            return False
+
+
+        if not configure_dns():
+            logger.logger.error(
+                "DNS configuration failed."
+            )
+            return False
+
+
+        if not configure_ip_static():
+            logger.logger.error(
+                "Static IP configuration failed."
+            )
+            return False
+
+
+        if not kernel_parameters():
+            logger.logger.error(
+                "Kernel network hardening failed."
+            )
+            return False
+
+
+        # Collect a final status snapshot after all changes are applied.
+        status()
+
+        logger.logger.info(
+            "Network configuration completed successfully."
+        )
+
+        return True
+
+
+    except Exception as error:
+
+        logger.logger.exception(
+            f"Unexpected network configuration error: {error}"
+        )
+
         return False
 
-    if not configure_dns():
-        return False
-
-    # if not configure_ip_static():
-    #     return False
-
-    # if not kernel_parameters():
-    #     return False
-
-    status()
-
-    return True
 def backup():
 
     # Return the list of paths that should be copied into the backup archive.
@@ -88,79 +171,203 @@ def backup():
 
 def restore():
 
+    # Restore logic is not implemented yet.
     pass
-
 
 
 def status():
 
-    return runner.run_command(["ping", "-c", "4", "google.com"])
+    # Check the current network interface state.
+    logger.logger.info(
+        "Checking network connectivity."
+    )
 
+    # Run the system command to collect interface information.
+    result = runner.run_command(
+        ["ip", "addr"]
+    )
+
+
+    if result is None:
+
+        logger.logger.error(
+            "Failed to get network status."
+        )
+
+        return False
+
+
+    logger.logger.info(
+        "Network status collected."
+    )
+
+    return True
+
+
+# Third-party style helper functions
 
 def configure_hostname():
 
-    logger.logger.info("hostname configuration started")
+    # Start hostname configuration and read the current host name.
+    logger.logger.info(
+        "Hostname configuration started."
+    )
 
-    result = runner.run_command(["hostname"])
+    # Read the current hostname from the system.
+    result = runner.run_command(
+        ["hostname"]
+    )
 
-    if result is None:
-        logger.logger.error("Failed to read current hostname!")
+    if result is None or result.returncode != 0:
+        logger.logger.error(
+            "Failed to read current hostname."
+        )
         return False
+
 
     current_hostname = result.stdout.strip()
 
-    
+    # Ask whether the user wants to change the hostname.
+    choice = input(
+        f"Current hostname: {current_hostname}\n"
+        "Change hostname? (y/N): "
+    ).strip().lower()
 
-    get_new_hostname = str(input(f"Your Current Hostname Is : {current_hostname}⚠️\n\for chnage enter y or Y for keep it press Enter :")).strip().lower()
+
+    if choice != "y":
+
+        logger.logger.info(
+            "Keeping current hostname."
+        )
+
+        return True
 
 
-    if get_new_hostname == "y":
-        new_hostname = input("New hostname: ").strip()
 
-        if not new_hostname:
-            print("Hostname cannot be empty!")
-            return False
+    # Read the new hostname from the user.
+    new_hostname = input(
+        "New hostname: "
+    ).strip()
 
-        if new_hostname == current_hostname:
-            print("hostname is already set.")
-            return True
 
-        if not re.match(r"^[a-zA-Z0-9-]+$", new_hostname):
-            logger.logger.error("invalid hostname format ")
-            return False
 
-      
-        result2 =runner.run_command(["hostnamectl", "set-hostname", new_hostname])
-        logger.logger.info(f"hostname from {current_hostname} to {new_hostname}")
-        if result2 is None:
-            logger.logger.error("Failed to change hostname.")
-            return False
+    if not new_hostname:
 
-        logger.logger.info(f"hostname changed to {new_hostname}")
+        logger.logger.error(
+            "Hostname cannot be empty."
+        )
 
-        logger.logger.info("editing /etc/hosts")
+        return False
+
+
+
+    if new_hostname == current_hostname:
+
+        logger.logger.info(
+            "Hostname already configured."
+        )
+
+        return True
+
+
+
+    hostname_pattern = (
+        r"^[a-zA-Z0-9]"
+        r"(?:[a-zA-Z0-9-]{0,61}"
+        r"[a-zA-Z0-9])?$"
+    )
+
+
+    if not re.match(hostname_pattern, new_hostname):
+
+        logger.logger.error(
+            "Invalid hostname format."
+        )
+
+        return False
+
+
+
+    # Apply the hostname change using systemd's hostnamectl command.
+    result = runner.run_command(
+        [
+            "hostnamectl",
+            "set-hostname",
+            new_hostname
+        ]
+    )
+
+
+    if result is None or result.returncode != 0:
+
+        logger.logger.error(
+            "Failed to change hostname."
+        )
+
+        return False
+
+
+
+    try:
+
+        # Update /etc/hosts so the new hostname resolves correctly locally.
         with open("/etc/hosts", "r") as file:
+
             lines = file.readlines()
 
-        found = False
+
+        updated = False
+
+
         with open("/etc/hosts", "w") as file:
+
             for line in lines:
-                if line.startswith("127.0.1.1"):
-                    file.write(f"127.0.1.1\t{new_hostname}\n")
-                    found = True
+
+                parts = line.split()
+
+                if parts and parts[0] == "127.0.1.1":
+
+                    file.write(
+                        f"127.0.1.1\t{new_hostname}\n"
+                    )
+
+                    updated = True
+
                 else:
+
                     file.write(line)
-            if not found:
-                file.write(f"\n127.0.1.1\t{new_hostname}\n")
 
-        return True
 
-    else :
-        logger.logger.info("keeping current hostname.")
-        return True
+
+            if not updated:
+
+                file.write(
+                    f"\n127.0.1.1\t{new_hostname}\n"
+                )
+
+
+    except Exception as error:
+
+        logger.logger.exception(
+            f"Failed to update /etc/hosts: {error}"
+        )
+
+        return False
+
+
+
+    logger.logger.info(
+        f"Hostname changed: {current_hostname} -> {new_hostname}"
+    )
+
+
+    return True
+
 
 
 def configure_dns():
+
+    # Start DNS configuration and prepare Netplan-related variables.
     logger.logger.info("DNS configuration started.")
 
     netplan_dir = Path("/etc/netplan")
@@ -175,9 +382,11 @@ def configure_dns():
     }
 
     def parse_list(raw: str) -> list[str]:
+        # Split a comma- or space-separated DNS input value into a clean list.
         return [item.strip() for item in raw.replace(",", " ").split() if item.strip()]
 
     def validate_dns_servers(servers: list[str]) -> list[str] | None:
+        # Ensure each DNS server entry is a valid IP address before applying it.
         valid = []
         for server in servers:
             try:
@@ -189,6 +398,7 @@ def configure_dns():
         return valid
 
     def detect_active_interface() -> str | None:
+        # Detect the active network interface used for the default route.
         result = runner.run_command(["ip", "route", "show", "default"])
         if result and result.stdout:
             for line in result.stdout.splitlines():
@@ -210,6 +420,7 @@ def configure_dns():
         return None
 
     def guess_device_section(interface: str) -> str:
+        # Determine whether the interface should be placed under ethernets, wifis, etc.
         result = runner.run_command(["networkctl", "status", interface])
         if result and result.stdout:
             text = result.stdout.lower()
@@ -238,6 +449,7 @@ def configure_dns():
         return "ethernets"
 
     def find_existing_netplan_target(interface: str) -> tuple[str | None, str | None]:
+        # Find an existing Netplan file that already contains the selected interface.
         files = sorted(list(netplan_dir.glob("*.yaml")) + list(netplan_dir.glob("*.yml")))
 
         for path in files:
@@ -261,6 +473,7 @@ def configure_dns():
 
     def update_existing_yaml(path: str, section: str, interface: str,
                              dns_servers: list[str], search_domains: list[str]) -> bool:
+        # Update an existing Netplan YAML file in place with the selected DNS values.
         try:
             p = Path(path)
 
@@ -283,8 +496,13 @@ def configure_dns():
                 network[section] = section_map = {}
 
             device_cfg = section_map.setdefault(interface, {})
+
             if not isinstance(device_cfg, dict):
                 section_map[interface] = device_cfg = {}
+
+            device_cfg["dhcp4-overrides"] = {
+                "use-dns": False
+            }
 
             nameservers = device_cfg.setdefault("nameservers", {})
             if not isinstance(nameservers, dict):
@@ -309,6 +527,7 @@ def configure_dns():
 
     def write_override_file(interface: str, section: str,
                             dns_servers: list[str], search_domains: list[str]) -> bool:
+        # Create a dedicated Netplan override file when no existing target is found.
         try:
             lines = [
                 "# Hardenix DNS override",
@@ -316,6 +535,8 @@ def configure_dns():
                 "  version: 2",
                 f"  {section}:",
                 f"    {interface}:",
+                "      dhcp4-overrides:",
+                "        use-dns: false",
                 "      nameservers:",
                 "        addresses:",
             ]
@@ -343,6 +564,7 @@ def configure_dns():
             logger.logger.exception(f"Failed to write DNS override file: {exc}")
             return False
 
+    # Prompt the user to choose a DNS preset or use a custom list.
     choice = input(
         "Choose DNS provider:\n"
         "  1) Cloudflare (1.1.1.1 / 1.0.0.1)\n"
@@ -381,6 +603,7 @@ def configure_dns():
     ).strip()
     search_domains = parse_list(raw_search) if raw_search else []
 
+    # Detect the active interface automatically; if that fails, ask the user.
     interface = detect_active_interface()
     if not interface:
         interface = input("Interface not detected automatically. Enter interface name: ").strip()
@@ -392,6 +615,7 @@ def configure_dns():
     section = guess_device_section(interface)
     logger.logger.info(f"Using interface '{interface}' in Netplan section '{section}'.")
 
+    # Decide whether to update an existing Netplan entry or create a new override.
     target_path, target_section = find_existing_netplan_target(interface)
 
     if target_path:
@@ -401,6 +625,7 @@ def configure_dns():
         if not write_override_file(interface, section, dns_servers, search_domains):
             return False
 
+    # Regenerate and apply the Netplan configuration so the DNS values take effect.
     if runner.run_command(["netplan", "generate"]) is None:
         logger.logger.error("netplan generate failed.")
         return False
@@ -409,19 +634,32 @@ def configure_dns():
         logger.logger.error("netplan apply failed.")
         return False
 
+    # Verify that the selected DNS servers are actually active.
+    verify = runner.run_command(["resolvectl", "status"])
+
+    if verify is None:
+        logger.logger.error("failed to verify DNS status")
+        return False
+
+    for dns in dns_servers:
+        if dns not in verify.stdout:
+            logger.logger.error(f"DNS {dns} is not active")
+            return False
+    logger.logger.info("DNS verification successful")
     logger.logger.info(f"DNS configured successfully for {interface}.")
     return True
 
 
 
+
 def configure_ip_static():
 
+    # Static IP configuration is not implemented yet.
     pass
 
     
 
 def kernel_parameters():
-
 
     # Build the configuration payload for sysctl hardening and hand it to the runner.
     config = {
