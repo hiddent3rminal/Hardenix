@@ -1,53 +1,15 @@
 # importing libraries
 
+from core import ascii_art
 from workflow import quick_setup
 from core import logger 
 import os 
 import sys
-import time
 
 # fucntion to keep the screen clean
 def clear_screen():
-    os.system("clear")
-
-
-
-
-
-
-
-ascii_art = "\033[38;5;39m" + r"""
-
-
- ██╗    ██╗ ███████╗ ██╗       ██████╗  ██████╗  ███╗   ███╗ ███████╗
- ██║    ██║ ██╔════╝ ██║      ██╔════╝ ██╔═══██╗ ████╗ ████║ ██╔════╝
- ██║ █╗ ██║ █████╗   ██║      ██║      ██║   ██║ ██╔████╔██║ █████╗  
- ██║███╗██║ ██╔══╝   ██║      ██║      ██║   ██║ ██║╚██╔╝██║ ██╔══╝  
- ╚███╔███╔╝ ███████╗ ███████╗ ╚██████╗ ╚██████╔╝ ██║ ╚═╝ ██║ ███████╗
-  ╚══╝╚══╝  ╚══════╝ ╚══════╝  ╚═════╝  ╚═════╝  ╚═╝     ╚═╝ ╚══════╝
-
- ████████╗  ██████╗      ██╗  ██╗  █████╗  ██████╗  ██████╗  ███████╗ ███╗   ██╗ ██╗ ██╗  ██╗
- ╚══██╔══╝ ██╔═══██╗     ██║  ██║ ██╔══██╗ ██╔══██╗ ██╔══██╗ ██╔════╝ ████╗  ██║ ██║ ╚██╗██╔╝
-    ██║    ██║   ██║     ███████║ ███████║ ██████╔╝ ██║  ██║ █████╗   ██╔██╗ ██║ ██║  ╚███╔╝ 
-    ██║    ██║   ██║     ██╔══██║ ██╔══██║ ██╔══██╗ ██║  ██║ ██╔══╝   ██║╚██╗██║ ██║  ██╔██╗ 
-    ██║    ╚██████╔╝     ██║  ██║ ██║  ██║ ██║  ██║ ██████╔╝ ███████╗ ██║ ╚████║ ██║ ██╔╝ ██╗
-    ╚═╝     ╚═════╝      ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═╝  ╚═╝ ╚═════╝  ╚══════╝ ╚═╝  ╚═══╝ ╚═╝ ╚═╝  ╚═╝
-
-
-""" + "\033[0m"
-
-
-
-
-
-
-
-
-
-
-
-
-
+    command = "cls" if os.name == "nt" else "clear"
+    os.system(command)
 
 
 
@@ -55,22 +17,23 @@ ascii_art = "\033[38;5;39m" + r"""
 
 
 # function to check the app started as a root or not 
-def CheckPrivilage():
+def check_privilege():
 
 
     if os.getuid() != 0 :
         print("❌ Hardenix Must Be Run As Root (sudo).\n\n➡️ Try: sudo python3 main.py")
         logger.logger.critical("The Hardenix Did Not Start with Root.")
-        sys.exit(1)
+        return False
 
 
-    else :
-        logger.logger.info("Hardenix started as a root and it passed CheckPrivilage Function")
-        DetectOS()
+    logger.logger.info("hardenix started as a root.")
+    return True
+
+
 
 
 # function to checkuser operating system 
-def DetectOS():
+def detect_os():
 
     os_release = "/etc/os-release"
     info = {}
@@ -78,7 +41,11 @@ def DetectOS():
 # checking os nfo file existence 
     if not os.path.exists(os_release):
         logger.logger.warning(f"Hardenix Could not find the {os_release} file to detect OS")
-        return
+        return {
+            "id": "unknown",
+            "family": "unknown",
+            "name": "unknown"
+        }
 
     with open(os_release, "r") as f:
         for line in f:
@@ -102,14 +69,21 @@ def DetectOS():
 
     print(ascii_art)
     print(f"Hardenix initialized on {name} ({family} family) ✅")
-    logger.logger.debug("user os and version detected succesfully {name} $ {family}")
+    logger.logger.debug(f"user os and version detected succesfully {name} : {family}")
+
 # moving to main menu function     
     logger.logger.info("OS detection was done and move on to main menu")
-    MainMenu()
+
+    return {
+        "id": os_id,
+        "family": family,
+        "name": name
+    }
 
 
 
-def MainMenu():
+
+def main_menu(system):
     while True:
         print("What Do You Want ⁉️ (Just Choose number!)⤵️\n\n\n")
         print("1️⃣ ) Quick Basic Hardening (Recommended)")
@@ -117,7 +91,7 @@ def MainMenu():
         print("3️⃣ ) Install A Specific Service")
         print("4️⃣ ) Backup / Restore Configuration")
         print("5️⃣ ) System Status Summary")
-        print("6️⃣ ) Check New Module Stracture")
+        print("6️⃣ ) Check New Module Structure")
         print("7️⃣ ) Exit")
 
         choice = input("Select An Option (1-7): ").strip()
@@ -146,34 +120,33 @@ def MainMenu():
         
         elif choice == 2:
             print('do')
-            time.sleep(3)
+
             clear_screen()
         
         elif choice == 3:
             print('se')
-            time.sleep(3)
+
             clear_screen()
         
         elif choice == 4:
             print('chahar')
-            time.sleep(3)
+
             clear_screen()
         
         elif choice == 5:
             print('panj')
-            time.sleep(3)
+
             clear_screen()
 
         elif choice == 6:
             print('shish')
-            time.sleep(3)
+
             clear_screen()
 
         elif choice == 7:
-            print("Exiting ...")
-            time.sleep(3)
+            logger.logger.info("Hardenix Stopped")
             clear_screen()
-            break
+            sys.exit(0)
 
 
 
@@ -181,7 +154,12 @@ def MainMenu():
 
 
 
+if __name__  ==  "__main__":
 
-logger.logger.info("Hardenix Started!")
-CheckPrivilage()
+    logger.logger.info("Hardenix Started!")
+
+    if check_privilege():
+
+        system = detect_os()
+        main_menu(system)
 
