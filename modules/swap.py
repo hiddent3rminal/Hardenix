@@ -1,6 +1,24 @@
 import os 
 from core import runner
 
+NAME = "swap"
+
+VERSION = "1.0"
+
+DESCRIPTION = "swap storage managment Module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+CONFIG_PATHS = []
+
+SERVICES = []
+
+PACKAGES = []
+
+
 def check_existence():
     return False
 

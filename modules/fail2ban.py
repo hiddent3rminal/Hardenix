@@ -1,9 +1,24 @@
 import os
 from core import logger
 
+NAME = "fail2ban"
+VERSION = "1.0"
+
+DESCRIPTION = "Avoid of SSH attacks ex: Bruteforce"
+
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
 CONFIG_PATHS = [
     "/etc/fail2ban"
 ]
+
+SERVICES = []
+
+PACKAGES = []
 
 
 def check_existence():

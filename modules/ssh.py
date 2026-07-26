@@ -8,6 +8,20 @@ CONFIG_PATHS = [
 
 ]
 
+NAME = "SSH"
+
+VERSION = "1.0"
+
+DESCRIPTION = "SSH Hardening Module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+SERVICES = []
+
+PACKAGES = []
 
 
 def check_existence():

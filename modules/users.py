@@ -1,6 +1,24 @@
 import os 
 from core import logger
 
+NAME = "users"
+
+VERSION = "1.0"
+
+DESCRIPTION = "users and permission module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+CONFIG_PATHS = []
+
+SERVICES = []
+
+PACKAGES = []
+
+
 def check_existence():
     return False
 

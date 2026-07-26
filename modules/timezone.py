@@ -1,6 +1,24 @@
 import os 
 from core import runner
 
+NAME = "timezone"
+
+VERSION = "1.0"
+
+DESCRIPTION = "date and time setup Module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+CONFIG_PATHS = []
+
+SERVICES = []
+
+PACKAGES = []
+
+
 def check_existence():
     return False
 

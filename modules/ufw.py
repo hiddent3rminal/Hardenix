@@ -6,6 +6,22 @@ CONFIG_PATHS = [
     "/etc/ufw"
 ]
 
+NAME = "ufw"
+
+VERSION = "1.0"
+
+DESCRIPTION = "ufw configuration module"
+
+SUPPORTED_DISTROS = [
+    "ubuntu",
+    "debian"
+]
+
+SERVICES = []
+
+PACKAGES = []
+
+
 
 def check_existence():
 
