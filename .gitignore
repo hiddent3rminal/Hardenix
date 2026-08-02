@@ -19,3 +19,5 @@ env/
 
 # macOS
 .DS_Store
+
+current_status.txt
