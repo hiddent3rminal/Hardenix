@@ -1,6 +1,6 @@
 # importing libraries
 
-from core import ascii_art
+from core import banner
 from workflow import quick_setup
 from core import logger 
 import os 
@@ -67,7 +67,7 @@ def detect_os():
     else:
         family = "unknown"
 
-    print(ascii_art)
+    print(banner.ascii_art())
     print(f"Hardenix initialized on {name} ({family} family) ✅")
     logger.logger.debug(f"user os and version detected succesfully {name} : {family}")
 
