@@ -4,7 +4,7 @@ from prompt_toolkit.completion import WordCompleter
 from prompt_toolkit import prompt
 from core import logger
 from datetime import datetime
-
+import time
 
 
 NAME = "timezone"
@@ -127,13 +127,25 @@ Enter n To Change And Enter For Just Skip : """).lower()
 # all third party functions related to managing timezone 
 def _get_timezones():
     result = runner.run_command(["timedatectl", "list-timezones"])
-    return result.stdout.splitlines()
+
+    if result.returncode != 0 :
+        logger.logger.error("failed to set new timezone")
+        return[]
+    else:
+        return result.stdout.splitlines()
 
 def _select_timezone():
     timezones = _get_timezones()
-    completer = WordCompleter(timezones,ignore_case=True)
-    timezone = prompt("Select Timezone : ", completer=completer)
-    return timezone
+    if not timezones:
+        return None
+
+    else:
+
+
+        completer = WordCompleter(timezones,ignore_case=True)
+        timezone = prompt("Select Timezone : ", completer=completer)
+        return timezone
+
 
 def _set_timezone(timezone):
     result_timezone = runner.run_command(["timedatectl", "set-timezone", f"{timezone}"])
@@ -141,7 +153,7 @@ def _set_timezone(timezone):
         print(f"timezone changed to {timezone}")
         logger.logger.info(f"User timezone chnaged to {timezone}")
     else:
-        logger.logger.debug("could not chjange timezone")
+        logger.logger.error(f"could not change timezone {result_timezone.stderr}")
 
 
 
@@ -223,7 +235,7 @@ def _change_ntp_status():
             if chnage_status == "y":
                 result1 = runner.run_command(["timedatectl", "set-ntp", "false"])
                 if result1.returncode != 0:
-                    logger.logger.debug("Could not to turn of ntp !")
+                    logger.logger.error("Could not to turn of ntp !")
                 else:
                     logger.logger.info("ntp disabled by user!")
                     print("NTP Successfuly Disabled ❌")
@@ -237,10 +249,10 @@ def _change_ntp_status():
             if chnage_status1 == "y":
                 result2 = runner.run_command(["timedatectl", "set-ntp", "true"])
                 if result2.returncode != 0 :
-                    logger.logger.debug("Could not turn on ntp !")
+                    logger.logger.error("Could not turn on ntp !")
 
                 else:
-                    logger.logger.debug("ntp enabled by user !")
+                    logger.logger.info("ntp enabled by user !")
                     print("NTP Successfuly Enabled ✅")
 
             else:
@@ -300,10 +312,15 @@ def _change_ntp_server():
     if not new_server:
         return
 
-
-    with open(TIMESYNCD_CONFIG , "r", encoding="utf-8") as file:
-        lines = file.readlines()
-
+    try :
+        with open(TIMESYNCD_CONFIG , "r", encoding="utf-8") as file:
+            lines = file.readlines()
+    except FileNotFoundError:
+        logger.logger.exception(f"{TIMESYNCD_CONFIG} not found")
+        return
+    except Exception as e:
+        logger.logger.exception(f"Failed to read {TIMESYNCD_CONFIG} got erorr:  {e}")
+        return
 
     found = False
     new_lines = []
@@ -319,10 +336,15 @@ def _change_ntp_server():
     if not found:
         new_lines.append(f"\nNTP={new_server}\n")
 
-    
-    with open(TIMESYNCD_CONFIG , "w", encoding="utf-8") as file:
-        file.writelines(new_lines)
-
+    try :
+        with open(TIMESYNCD_CONFIG , "w", encoding="utf-8") as file:
+            file.writelines(new_lines)
+    except FileNotFoundError:
+        logger.logger.error(f"could not find the file {TIMESYNCD_CONFIG}")
+        return
+    except Exception as e :
+        logger.logger.exception(f"failed to edit {TIMESYNCD_CONFIG} error : {e}")
+        return
 
     restart = runner.run_command(
         ["systemctl", "restart", "systemd-timesyncd"]
@@ -344,25 +366,43 @@ def _sync_ntp():
     if service != "systemd-timesyncd":
         print("Unsupported NTP service")
         return
+    else : 
+        try : 
+            restart = runner.run_command(
+                ["systemctl","restart","systemd-timesyncd"]
+            )
+
+            if restart.returncode != 0:
+                print("❌ Failed to restart time sync service")
+                return
+
+            attemp = 0
+            synced = False
+            while attemp < 3 :
+                attemp += 1
+                check_sync = runner.run_command(["timedatectl", "show", "--property=NTPSynchronized"])
+
+                check_ntp = check_sync.stdout.split("=", 1)[1].strip()
+                if check_ntp == "yes":
+                    logger.logger.info("NTP synced with server successfuly")
+                    synced = True
+                    break
+                elif check_ntp == "no":
+                    logger.logger.warning("NTP not synced yet with the server! try agian . . .")
+
+                time.sleep(5)
 
 
-    restart = runner.run_command(
-        ["systemctl","restart","systemd-timesyncd"]
-    )
-    logger.logger.info("NTP synced with server successfuly")
-
-    if restart.returncode != 0:
-        print("❌ Failed to restart time sync service")
-        return
 
 
-    status = runner.run_command(
-        [
-            "timedatectl",
-            "show",
-            "--property=NTPSynchronized"
-        ]
-    )
+            if not synced:
+                print("❌ NTP synchronization failed")
+                logger.logger.error("failed to sync NTP")
+            else :
+                print("✅ NTP synced successfuly .")
 
+        except Exception as e:
+            logger.logger.exception(f"got an erorr to reatrt and check NTP status {e}")
+            return
 
-    print(status.stdout)
+        print(status.stdout)
