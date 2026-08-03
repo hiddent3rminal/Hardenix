@@ -24,7 +24,9 @@ SERVICES = []
 
 PACKAGES = []
 
+# ntp config files 
 
+TIMESYNCD_CONFIG = "/etc/systemd/timesyncd.conf"
 
 def check_existence():
     return False
@@ -47,20 +49,26 @@ def configure():
 
         if change_menu == "1" :
             _change_timezone()
+            logger.logger.info("user wants to change timezone !")
             break
         elif change_menu == "2" :
             _change_time_manually()
+            logger.logger.info("user wants to change time and date manualy")
             break
         elif change_menu == "3" :
             _change_ntp_status()
+            logger.logger.info("user wants to turn on/off the NTP")
             break
         elif change_menu == "4" :
             _change_ntp_server()
+            logger.logger.info("user wants to change the NTP server")
             break
         elif change_menu == "5" :
             _sync_ntp()
+            logger.logger.info("user wants to sync system date and time with NTP server")
             break
         else :
+            logger.logger.debug("user selected invalid option !")
             print("Invalid option, try again")
             clear_screen()
 
@@ -74,18 +82,24 @@ def restore():
 def status():
 
     def _get_status(name):
+        
         result = runner.run_command(["timedatectl", "show", f"--property={name}"])
         return result.stdout.split("=", 1)[1].strip()
 
 
-    current_timezone = _get_status("Timezone")
+    try:
 
-    current_time = _get_status("TimeUSec")
+        current_timezone = _get_status("Timezone")
 
-    current_ntp = _get_status("NTP")
+        current_time = _get_status("TimeUSec")
 
-    current_ntp_sync = _get_status("NTPSynchronized")
+        current_ntp = _get_status("NTP")
 
+        current_ntp_sync = _get_status("NTPSynchronized")    
+
+    except Exception as e :
+        logger.logger.error(f"failed to get timedatectl status : {e}")
+        return
 
     while True:
 
@@ -108,8 +122,6 @@ Enter n To Change And Enter For Just Skip : """).lower()
         else:
             print("Invalid Input!")
             clear_screen()
-
-            
 
 
 # all third party functions related to managing timezone 
@@ -256,9 +268,7 @@ def _detect_ntp_service():
     return None
 
 
-# ntp config files 
 
-TIMESYNCD_CONFIG = "/etc/systemd/timesyncd.conf"
     
 def _get_current_ntp_server():
     result = runner.run_command(
@@ -339,7 +349,7 @@ def _sync_ntp():
     restart = runner.run_command(
         ["systemctl","restart","systemd-timesyncd"]
     )
-
+    logger.logger.info("NTP synced with server successfuly")
 
     if restart.returncode != 0:
         print("❌ Failed to restart time sync service")
