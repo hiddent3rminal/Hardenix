@@ -144,7 +144,7 @@ def main_menu(system):
             clear_screen()
 
         elif choice == 7:
-            logger.logger.info("Hardenix Stopped")
+            logger.logger.info("Hardenix Stopped and Exited")
             clear_screen()
             sys.exit(0)
 
