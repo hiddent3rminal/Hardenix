@@ -1,9 +1,6 @@
 # workflow/quick_setup.py
 
 
-from modules import ssh
-from modules import ufw
-from modules import fail2ban
 from modules import network
 from modules import timezone
 
@@ -34,7 +31,7 @@ def run_step(name, function):
         result = function()
 
 
-        if result is False:
+        if result is False or result is None:
 
             logger.logger.error(
                 f"{name} configuration failed."
@@ -70,10 +67,7 @@ def quick_basic_hardening():
         1. Create backup
         2. Configure timezone
         3. Configure network
-        4. Harden SSH
-        5. Configure Fail2Ban
-        6. Configure Firewall
-        7. Show final status
+        4. Show final status
 
     Returns:
         bool:
@@ -103,60 +97,37 @@ def quick_basic_hardening():
             "Network",
             network.configure
         ),
-
-        (
-            "SSH",
-            ssh.configure
-        ),
-
-        (
-            "Fail2Ban",
-            fail2ban.configure
-        ),
-
-        (
-            "UFW Firewall",
-            ufw.configure
-        ),
-
     ]
 
-
+    print(
+        "SSH hardening, Fail2Ban, and firewall configuration are not implemented "
+        "and will be skipped."
+    )
+    logger.logger.warning(
+        "Unsupported hardening features skipped: SSH, Fail2Ban, and firewall."
+    )
 
     for name, function in steps:
-
-
         if not run_step(name, function):
-
             logger.logger.critical(
                 f"Quick hardening stopped during: {name}"
             )
-
             logger.logger.info(
                 "System was not fully hardened."
             )
-
             return False
-
-
-
     logger.logger.info(
         "Running final system status check..."
     )
-
-
     try:
-
-        status.show_summary()
-
-
-    except Exception as error:
-
+        if not status.show_summary():
+            logger.logger.error("Final system status check was incomplete.")
+            return False
+    except Exception:
         logger.logger.exception(
-            f"Status check failed: {error}"
+            "Status check failed."
         )
-
-
+        return False
     logger.logger.info(
         "========== Quick Basic Hardening Completed Successfully =========="
     )

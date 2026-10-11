@@ -33,13 +33,14 @@ CONFIG_PATHS = [
 
     "/etc/hostname",
 
-    "/etc/systemd/resolved.conf"
+    "/etc/systemd/resolved.conf",
+
+    "/etc/sysctl.d/99-hardenix.conf",
 ]
 
 # Default sysctl values used by the hardening configuration.
 # These settings disable common IPv4 attack vectors and improve host hardening.
 SYSCTL_SETTINGS = {
-    "net.ipv4.ip_forward": "0",
     "net.ipv4.conf.all.accept_redirects": "0",
     "net.ipv4.conf.default.accept_redirects": "0",
     "net.ipv4.conf.all.send_redirects": "0",
@@ -115,7 +116,10 @@ def configure():
 
     try:
 
-        # Apply hostname, DNS, static IP, and kernel hardening in order.
+        # Static addressing is intentionally not changed by this workflow.
+        logger.logger.info("Static IP configuration is unsupported and will be skipped.")
+
+        # Apply hostname, DNS, and kernel hardening in order.
         if not configure_hostname():
             logger.logger.error(
                 "Hostname configuration failed."
@@ -130,13 +134,6 @@ def configure():
             return False
 
 
-        if not configure_ip_static():
-            logger.logger.error(
-                "Static IP configuration failed."
-            )
-            return False
-
-
         if not kernel_parameters():
             logger.logger.error(
                 "Kernel network hardening failed."
@@ -145,7 +142,8 @@ def configure():
 
 
         # Collect a final status snapshot after all changes are applied.
-        status()
+        if not status():
+            logger.logger.warning("Network configuration was applied but status could not be collected.")
 
         logger.logger.info(
             "Network configuration completed successfully."
@@ -170,9 +168,8 @@ def backup():
 
 
 def restore():
-
-    # Restore logic is not implemented yet.
-    pass
+    logger.logger.error("Network configuration restore is not implemented.")
+    return False
 
 
 def status():
@@ -346,11 +343,15 @@ def configure_hostname():
                 )
 
 
-    except Exception as error:
+    except OSError as error:
 
         logger.logger.exception(
             f"Failed to update /etc/hosts: {error}"
         )
+        if runner.run_command(["hostnamectl", "set-hostname", current_hostname]) is None:
+            logger.logger.critical(
+                "Could not restore the previous hostname after /etc/hosts update failed."
+            )
 
         return False
 
@@ -602,6 +603,17 @@ def configure_dns():
         "Search domains (optional, space/comma separated, Enter to skip): "
     ).strip()
     search_domains = parse_list(raw_search) if raw_search else []
+    for domain in search_domains:
+        labels = domain.rstrip(".").split(".")
+        if not labels or any(
+            not re.fullmatch(
+                r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",
+                label,
+            )
+            for label in labels
+        ):
+            logger.logger.error("Invalid DNS search domain: %s", domain)
+            return False
 
     # Detect the active interface automatically; if that fails, ask the user.
     interface = detect_active_interface()
@@ -611,27 +623,65 @@ def configure_dns():
     if not interface:
         logger.logger.error("No interface selected.")
         return False
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,15}", interface):
+        logger.logger.error("Invalid network interface name.")
+        return False
+
+    if input(
+        "Applying DNS through Netplan may interrupt remote connectivity. "
+        "Continue? (y/N): "
+    ).strip().lower() != "y":
+        logger.logger.info("Netplan DNS changes skipped by user.")
+        return True
 
     section = guess_device_section(interface)
     logger.logger.info(f"Using interface '{interface}' in Netplan section '{section}'.")
 
     # Decide whether to update an existing Netplan entry or create a new override.
     target_path, target_section = find_existing_netplan_target(interface)
+    if target_path and target_section:
+        config_path = Path(target_path)
+    else:
+        config_path = override_file
+    try:
+        config_existed = config_path.exists()
+        original_config = config_path.read_bytes() if config_existed else None
+    except OSError:
+        logger.logger.exception("Could not snapshot Netplan configuration: %s", config_path)
+        return False
 
-    if target_path:
+    def rollback_netplan(reload_network: bool = False) -> None:
+        try:
+            if config_existed and original_config is not None:
+                config_path.write_bytes(original_config)
+            else:
+                config_path.unlink(missing_ok=True)
+            if reload_network:
+                if runner.run_command(["netplan", "generate"]) is None:
+                    logger.logger.error("Could not regenerate the previous Netplan configuration.")
+                elif runner.run_command(["netplan", "apply"]) is None:
+                    logger.logger.error("Could not reapply the previous Netplan configuration.")
+        except OSError:
+            logger.logger.exception("Could not restore Netplan configuration: %s", config_path)
+
+    if target_path and target_section:
         if not update_existing_yaml(target_path, target_section, interface, dns_servers, search_domains):
+            rollback_netplan()
             return False
     else:
         if not write_override_file(interface, section, dns_servers, search_domains):
+            rollback_netplan()
             return False
 
     # Regenerate and apply the Netplan configuration so the DNS values take effect.
     if runner.run_command(["netplan", "generate"]) is None:
         logger.logger.error("netplan generate failed.")
+        rollback_netplan()
         return False
 
     if runner.run_command(["netplan", "apply"]) is None:
         logger.logger.error("netplan apply failed.")
+        rollback_netplan(reload_network=True)
         return False
 
     # Verify that the selected DNS servers are actually active.
@@ -639,11 +689,13 @@ def configure_dns():
 
     if verify is None:
         logger.logger.error("failed to verify DNS status")
+        rollback_netplan(reload_network=True)
         return False
 
     for dns in dns_servers:
         if dns not in verify.stdout:
             logger.logger.error(f"DNS {dns} is not active")
+            rollback_netplan(reload_network=True)
             return False
     logger.logger.info("DNS verification successful")
     logger.logger.info(f"DNS configured successfully for {interface}.")
@@ -653,13 +705,18 @@ def configure_dns():
 
 
 def configure_ip_static():
-
-    # Static IP configuration is not implemented yet.
-    pass
+    logger.logger.error("Static IP configuration is not implemented.")
+    return False
 
     
 
 def kernel_parameters():
+
+    if input(
+        "Apply kernel network settings? These may affect routing/VPN behavior. (y/N): "
+    ).strip().lower() != "y":
+        logger.logger.info("Kernel network hardening skipped by user.")
+        return True
 
     # Build the configuration payload for sysctl hardening and hand it to the runner.
     config = {
@@ -667,7 +724,3 @@ def kernel_parameters():
         "settings": SYSCTL_SETTINGS
     }
     return runner.apply_sysctl(config)
-
-
-
-

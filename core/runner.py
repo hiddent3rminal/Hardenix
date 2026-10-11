@@ -1,71 +1,81 @@
-from core import logger
+from collections.abc import Sequence
+from pathlib import Path
 import subprocess
 
+from core import logger
 
-def run_command(command):
+
+def run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
+    """Run one command without a shell; return None when it cannot succeed."""
+    if isinstance(command, (str, bytes)) or not command:
+        raise ValueError("command must be a non-empty sequence of arguments")
+
+    command_args = list(command)
+    if any(not isinstance(argument, str) for argument in command_args):
+        raise TypeError("all command arguments must be strings")
 
     try:
-
-
         result = subprocess.run(
-            command,
+            command_args,
             check=True,
             capture_output=True,
-            text=True
+            text=True,
         )
-
-        logger.logger.debug(f"Command executed successfully: {' '.join(command)}")
-
-        return result
-
-    except PermissionError:
-        logger.logger.exception(f"Permission denied while executing command: {' '.join(command)}")
+    except subprocess.CalledProcessError as error:
+        logger.logger.error(
+            "Command failed (%s): %s",
+            error.returncode,
+            " ".join(command_args),
+        )
+        if error.stderr:
+            logger.logger.error("%s", error.stderr.strip())
+        return None
+    except OSError:
+        logger.logger.exception("Could not execute command: %s", command_args[0])
         return None
 
-    except subprocess.CalledProcessError:
-        logger.logger.exception(f"Command failed: {' '.join(command)}")
-        return None
-
-    except FileNotFoundError:
-        logger.logger.exception(f"Command not found: {command[0]}")
-        return None
-
-    except Exception:
-        logger.logger.exception(f"Unexpected error while executing command: {' '.join(command)}")
-        return None
+    logger.logger.debug("Command executed successfully: %s", " ".join(command_args))
+    return result
 
 
-def apply_sysctl(config):
-
+def apply_sysctl(config: dict[str, object]) -> bool:
     try:
+        config_file = config["file"]
+        settings = config["settings"]
+        if not isinstance(config_file, str) or not isinstance(settings, dict):
+            raise TypeError("sysctl config must contain a string file and settings mapping")
 
-        logger.logger.info(f"Writing sysctl configuration to {config['file']}")
-
-        with open(config["file"], "w") as file:
-
-            file.write("# Hardenix Network Hardening\n\n")
-
-            for key, value in config["settings"].items():
-
-                logger.logger.debug(f"Setting {key} = {value}")
-
-                file.write(f"{key} = {value}\n")
+        path = Path(config_file)
+        previous_contents = path.read_bytes() if path.exists() else None
+        logger.logger.info("Writing sysctl configuration to %s", config_file)
+        try:
+            with path.open("w", encoding="utf-8") as file:
+                file.write("# Hardenix Network Hardening\n\n")
+                for key, value in settings.items():
+                    file.write(f"{key} = {value}\n")
+        except OSError:
+            if previous_contents is None:
+                path.unlink(missing_ok=True)
+            else:
+                path.write_bytes(previous_contents)
+            raise
 
         if run_command(["sysctl", "--system"]) is None:
+            try:
+                if previous_contents is None:
+                    path.unlink(missing_ok=True)
+                else:
+                    path.write_bytes(previous_contents)
+                if run_command(["sysctl", "--system"]) is None:
+                    logger.logger.error(
+                        "Runtime sysctl settings may not match the restored configuration."
+                    )
+            except OSError:
+                logger.logger.exception("Could not roll back %s.", config_file)
             return False
 
         logger.logger.info("Network hardening applied successfully.")
-
         return True
-
-    except PermissionError:
-        logger.logger.exception("Root privileges are required to write the sysctl configuration.")
-        return False
-
-    except KeyError as e:
-        logger.logger.exception(f"Missing configuration key: {e}")
-        return False
-
-    except Exception:
+    except (OSError, KeyError, TypeError):
         logger.logger.exception("Failed to apply network hardening.")
         return False

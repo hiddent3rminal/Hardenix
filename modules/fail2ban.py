@@ -34,12 +34,14 @@ def check_existence():
 
 
 def install():
-    pass
+    logger.logger.error("Fail2Ban installation is not implemented.")
+    return False
 
 
 
 def configure():
-    pass
+    logger.logger.error("Fail2Ban configuration is not implemented; no settings were changed.")
+    return False
 
 
 
@@ -50,9 +52,11 @@ def backup():
 
 
 def restore():
-    pass
+    logger.logger.error("Fail2Ban configuration restore is not implemented.")
+    return False
 
 
 
 def status():
-    pass
+    logger.logger.error("Fail2Ban status reporting is not implemented.")
+    return False

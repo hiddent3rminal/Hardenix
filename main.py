@@ -3,13 +3,13 @@
 from core import banner
 from workflow import quick_setup
 from core import logger 
+from core import backup, status
 import os 
 import sys
 
 # fucntion to keep the screen clean
 def clear_screen():
-    command = "cls" if os.name == "nt" else "clear"
-    os.system(command)
+    print("\033[2J\033[H", end="")
 
 
 
@@ -21,7 +21,7 @@ def check_privilege():
 
 
     if os.getuid() != 0 :
-        print("❌ Hardenix Must Be Run As Root (sudo).\n\n➡️ Try: sudo python3 main.py")
+        print("❌ Hardenix must be run as root.\n\n➡️ Try: sudo python3 main.py")
         logger.logger.critical("The Hardenix Did Not Start with Root.")
         return False
 
@@ -67,7 +67,7 @@ def detect_os():
     else:
         family = "unknown"
 
-    print(banner.ascii_art())
+    print(banner.ascii_art)
     print(f"Hardenix initialized on {name} ({family} family) ✅")
     logger.logger.debug(f"user os and version detected succesfully {name} : {family}")
 
@@ -85,13 +85,14 @@ def detect_os():
 
 def main_menu(system):
     while True:
+        print(f"Detected system: {system['name']} ({system['family']} family)\n")
         print("What Do You Want ⁉️ (Just Choose number!)⤵️\n\n\n")
-        print("1️⃣ ) Quick Basic Hardening (Recommended)")
-        print("2️⃣ ) Hardening A Installed Service")
-        print("3️⃣ ) Install A Specific Service")
+        print("1️⃣ ) Quick Basic Hardening (partial - review supported features)")
+        print("2️⃣ ) Harden an installed service (not implemented)")
+        print("3️⃣ ) Install a specific service (not implemented)")
         print("4️⃣ ) Backup / Restore Configuration")
         print("5️⃣ ) System Status Summary")
-        print("6️⃣ ) Check New Module Structure")
+        print("6️⃣ ) Module structure information")
         print("7️⃣ ) Exit")
 
         choice = input("Select An Option (1-7): ").strip()
@@ -114,34 +115,42 @@ def main_menu(system):
 
 
         if choice == 1:
-    
-            quick_setup.quick_basic_hardening()
+            if not quick_setup.quick_basic_hardening():
+                print("❌ Hardening workflow did not complete. Check the log for details.")
             logger.logger.debug("User selected 'quick basic hardening method and specific file parsed! ' ")
         
         elif choice == 2:
-            print('do')
-
-            clear_screen()
+            print("Installed-service hardening is not implemented; no changes were made.")
         
         elif choice == 3:
-            print('se')
-
-            clear_screen()
+            print("Service installation is not implemented; no changes were made.")
         
         elif choice == 4:
-            print('chahar')
-
-            clear_screen()
+            action = input("1) Create configuration backup\n2) Restore (not implemented)\nSelect: ").strip()
+            if action == "1":
+                backup_path = backup.create_backup()
+                if backup_path is False:
+                    print("❌ Backup failed or was incomplete.")
+                else:
+                    try:
+                        archive = backup.compress_folder(backup_path)
+                    except OSError:
+                        logger.logger.exception("Could not compress the backup.")
+                        print("❌ Backup was created but compression failed.")
+                    else:
+                        print(f"✅ Backup created: {archive}")
+            elif action == "2":
+                print("Restore is not implemented; no files were changed.")
+            else:
+                print("Invalid option.")
         
         elif choice == 5:
-            print('panj')
-
-            clear_screen()
+            if not status.show_summary():
+                print("⚠️ Some status checks were unavailable.")
 
         elif choice == 6:
-            print('shish')
-
-            clear_screen()
+            print("Modules should expose explicit check, configure, backup, and restore behavior.")
+            print("See templates/module_template.py.")
 
         elif choice == 7:
             logger.logger.info("Hardenix Stopped and Exited")
@@ -162,4 +171,3 @@ if __name__  ==  "__main__":
 
         system = detect_os()
         main_menu(system)
-
