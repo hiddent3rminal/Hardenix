@@ -24,6 +24,7 @@ def check_update() -> int | None:
 
 
 def update() -> bool:
+    # TODO: Require an explicit operator confirmation before package upgrades.
     if runner.run_command(["apt-get", "update"]) is None:
         logger.logger.error("Package index update failed.")
         return False

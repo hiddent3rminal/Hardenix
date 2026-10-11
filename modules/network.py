@@ -168,6 +168,7 @@ def backup():
 
 
 def restore():
+    # TODO: Implement transactional restore with Netplan validation and rollback.
     logger.logger.error("Network configuration restore is not implemented.")
     return False
 
@@ -705,6 +706,7 @@ def configure_dns():
 
 
 def configure_ip_static():
+    # TODO: Add an opt-in static-IP flow with route/DNS validation and console rollback.
     logger.logger.error("Static IP configuration is not implemented.")
     return False
 

@@ -120,9 +120,11 @@ def main_menu(system):
             logger.logger.debug("User selected 'quick basic hardening method and specific file parsed! ' ")
         
         elif choice == 2:
+            # TODO: Implement per-service discovery and safe configure actions.
             print("Installed-service hardening is not implemented; no changes were made.")
         
         elif choice == 3:
+            # TODO: Add a supported-service catalog and explicit install confirmation.
             print("Service installation is not implemented; no changes were made.")
         
         elif choice == 4:
@@ -140,6 +142,7 @@ def main_menu(system):
                     else:
                         print(f"✅ Backup created: {archive}")
             elif action == "2":
+                # TODO: Connect this option to a validated, transactional restore flow.
                 print("Restore is not implemented; no files were changed.")
             else:
                 print("Invalid option.")

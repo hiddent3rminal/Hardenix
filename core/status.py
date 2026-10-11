@@ -2,6 +2,7 @@ from core import runner
 
 
 def show_summary() -> bool:
+    # TODO: Include effective firewall, SSH, Fail2Ban, and kernel-hardening state.
     checks = (
         ("Hostname", ["hostname"]),
         ("Network interfaces", ["ip", "-brief", "address"]),

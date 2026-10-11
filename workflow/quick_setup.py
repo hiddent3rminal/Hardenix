@@ -103,6 +103,7 @@ def quick_basic_hardening():
         "SSH hardening, Fail2Ban, and firewall configuration are not implemented "
         "and will be skipped."
     )
+    # TODO: Add these steps only after their modules can verify effective system state.
     logger.logger.warning(
         "Unsupported hardening features skipped: SSH, Fail2Ban, and firewall."
     )

@@ -19,8 +19,22 @@ The Python interpreter used for the system packages must be Python 3.10 or newer
 Run Hardenix only from a trusted checkout that untrusted users cannot modify;
 the application needs root privileges to change system configuration.
 
+## Current limitations
+
 The quick workflow currently backs up configuration, offers time settings,
-and applies selected network settings. SSH hardening, Fail2Ban, firewall
-configuration, static-IP configuration, and restore are not implemented and
-are explicitly skipped or reported unavailable. Do not treat a completed run
-as a full server-hardening audit.
+and applies selected network settings. It is not a complete hardening audit.
+
+- SSH hardening, Fail2Ban configuration, and firewall/UFW support are not
+  implemented; the quick workflow explicitly skips them.
+- Static-IP configuration is not implemented.
+- Backup restore is not implemented; restore options make no changes.
+- Installed-service hardening and service installation menu actions are
+  informational placeholders.
+- The package updater exists but is not exposed in the menu and still needs
+  explicit operator confirmation before upgrades.
+- The status summary does not yet verify SSH, Fail2Ban, firewall, or all
+  effective kernel-hardening settings.
+
+Network and time changes require root and can affect remote access. Test them
+on a disposable machine with console access before using them on a production
+host.

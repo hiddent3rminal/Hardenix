@@ -39,12 +39,14 @@ def check_existence():
 
 
 def install():
+    # TODO: Implement package installation with distro checks and explicit confirmation.
     logger.logger.error("SSH installation is not implemented.")
     return False
 
 
 
 def configure():
+    # TODO: Apply auditable SSH settings, validate sshd_config, and reload safely.
     logger.logger.error("SSH hardening is not implemented; no SSH settings were changed.")
     return False
 
@@ -58,11 +60,13 @@ def backup():
 
 
 def restore():
+    # TODO: Restore a selected backup only after validating its paths and contents.
     logger.logger.error("SSH configuration restore is not implemented.")
     return False
 
 
 
 def status():
+    # TODO: Report effective sshd settings and service health.
     logger.logger.error("SSH status reporting is not implemented.")
     return False
