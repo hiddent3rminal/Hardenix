@@ -1,6 +1,10 @@
 # Hardenix
 Interactive Linux server provisioning and hardening framework for Ubuntu and Debian.
 
+## Status 
+
+Now It's Stopped Because Of Some Reasons, But PR Is Accpeted
+
 ## Requirements
 
 - Ubuntu or Debian
