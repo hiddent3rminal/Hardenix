@@ -1,8 +1,8 @@
-from core import runner
+from core import logger, runner
+from modules.registry import get_modules
 
 
 def show_summary() -> bool:
-    # TODO: Include effective firewall, SSH, Fail2Ban, and kernel-hardening state.
     checks = (
         ("Hostname", ["hostname"]),
         ("Network interfaces", ["ip", "-brief", "address"]),
@@ -23,4 +23,14 @@ def show_summary() -> bool:
             continue
         value = result.stdout.strip() or "unknown"
         print(f"{label}: {value}")
+
+    print("\nService modules")
+    for module in get_modules():
+        try:
+            if not module.status():
+                complete = False
+        except Exception:
+            logger.logger.exception("Status check failed for module %s.", module.NAME)
+            print(f"{module.NAME}: status check failed")
+            complete = False
     return complete

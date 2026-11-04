@@ -1,25 +1,21 @@
 # Backup engine for collecting configuration files from security-related modules.
 # Each service module exposes a simple interface: existence check, backup paths, and optional restore/status behavior.
 
+import json
 import os
+from pathlib import Path
 import shutil
 from datetime import datetime
-from core import logger
-from modules import network
-from modules import ssh
-from modules import timezone
+from core import config, logger
+from modules.registry import get_modules
 
 
 # Root directory where all timestamped backup folders will be created.
-BACKUP_ROOT = "Hardenix_Backup"
+BACKUP_ROOT = Path("/var/backups/hardenix")
 
 
 # List of service modules that should be included in the backup process.
-SERVICES = [
-    ssh,
-    network,
-    timezone,
-]
+SERVICES = get_modules()
 
 
 def create_backup_folder():
@@ -28,16 +24,14 @@ def create_backup_folder():
     # This avoids overwriting older backups and makes each run easy to identify.
     timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S_%f")
 
-    backup_dir = os.path.join(
-        BACKUP_ROOT,
-        timestamp
-    )
-
-    os.makedirs(backup_dir, exist_ok=False)
+    BACKUP_ROOT.mkdir(mode=0o700, parents=True, exist_ok=True)
+    BACKUP_ROOT.chmod(0o700)
+    backup_dir = BACKUP_ROOT / timestamp
+    backup_dir.mkdir(mode=0o700, exist_ok=False)
 
     logger.logger.info(f"Backup folder created successfully named {backup_dir}")
 
-    return backup_dir
+    return str(backup_dir)
 
 
 
@@ -85,9 +79,11 @@ def create_backup():
     logger.logger.info("Backup started.")
     copied_count = 0
     failed = False
+    entries = []
 
     for service in SERVICES:
-        service_name = service.__name__.split(".")[-1]
+        module_name = getattr(service, "NAME", service.__name__.split(".")[-1])
+        service_name = module_name.casefold().replace(" ", "_")
         try:
             if not service.check_existence():
                 logger.logger.info("No configuration found for %s; skipping.", service_name)
@@ -98,16 +94,23 @@ def create_backup():
                 logger.logger.warning("%s returned no backup paths.", service_name)
                 continue
 
-            service_backup_dir = os.path.join(backup_dir, service_name)
-            os.makedirs(service_backup_dir, exist_ok=True)
+            service_backup_dir = Path(backup_dir) / service_name
+            service_backup_dir.mkdir(mode=0o700, exist_ok=True)
 
-            for path in paths:
+            for index, path in enumerate(paths):
                 if not os.path.exists(path):
                     logger.logger.info("Optional configuration path is absent; skipping: %s", path)
                     continue
-                destination = os.path.join(service_backup_dir, os.path.basename(path))
+                destination = service_backup_dir / f"{index:03d}-{Path(path).name}"
                 if copy_config(path, destination):
                     copied_count += 1
+                    entries.append(
+                        {
+                            "module": module_name,
+                            "source": str(Path(path).resolve()),
+                            "backup": destination.relative_to(backup_dir).as_posix(),
+                        }
+                    )
                 else:
                     failed = True
         except (OSError, AttributeError, TypeError):
@@ -119,6 +122,17 @@ def create_backup():
             "Backup incomplete (%s paths copied); it will not be treated as successful.",
             copied_count,
         )
+        return False
+
+    try:
+        manifest_path = Path(backup_dir) / "manifest.json"
+        config.atomic_write_text(
+            manifest_path,
+            json.dumps({"version": 1, "entries": entries}, indent=2) + "\n",
+            default_mode=0o600,
+        )
+    except OSError:
+        logger.logger.exception("Could not write backup manifest.")
         return False
 
     print("\nBackup Finished:")
@@ -133,6 +147,7 @@ def compress_folder(folder):
 
     # Create a zip archive of the completed backup folder for easier storage or transfer.
     archive = shutil.make_archive(folder, "zip", folder)
+    Path(archive).chmod(0o600)
 
 
     # print(

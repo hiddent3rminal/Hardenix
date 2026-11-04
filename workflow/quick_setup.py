@@ -1,8 +1,10 @@
 # workflow/quick_setup.py
 
 
-from modules import network
-from modules import timezone
+from collections.abc import Callable
+from types import ModuleType
+
+from modules.registry import get_module
 
 from core import logger
 from core import backup
@@ -10,7 +12,7 @@ from core import status
 
 
 
-def run_step(name, function):
+def run_step(name: str, function: Callable[[], bool | str | None]) -> bool:
     """
     Execute a hardening step safely.
 
@@ -81,32 +83,16 @@ def quick_basic_hardening():
     )
 
 
-    steps = [
-
-        (
-            "Backup",
-            backup.create_backup
-        ),
-
-        (
-            "Timezone",
-            timezone.configure
-        ),
-
-        (
-            "Network",
-            network.configure
-        ),
+    module_names = ("timezone", "ssh", "fail2ban", "network")
+    steps: list[tuple[str, Callable[[], bool | str | None]]] = [
+        ("Backup", backup.create_backup)
     ]
-
-    print(
-        "SSH hardening, Fail2Ban, and firewall configuration are not implemented "
-        "and will be skipped."
-    )
-    # TODO: Add these steps only after their modules can verify effective system state.
-    logger.logger.warning(
-        "Unsupported hardening features skipped: SSH, Fail2Ban, and firewall."
-    )
+    for module_name in module_names:
+        module = get_module(module_name)
+        if module is None:
+            logger.logger.error("Required built-in module is missing: %s", module_name)
+            return False
+        steps.append((module.NAME, lambda module=module: _configure_module(module)))
 
     for name, function in steps:
         if not run_step(name, function):
@@ -135,3 +121,17 @@ def quick_basic_hardening():
 
 
     return True
+
+
+def _configure_module(module: ModuleType) -> bool:
+    if module.NAME.casefold() in {"ssh", "fail2ban"} and not module.check_existence():
+        answer = input(
+            f"{module.NAME} is not installed. Install it now? (y/N): "
+        ).strip().lower()
+        if answer != "y":
+            logger.logger.info("%s setup skipped by user.", module.NAME)
+            return True
+        if not module.install() or not module.check_existence():
+            logger.logger.error("%s installation did not complete.", module.NAME)
+            return False
+    return module.configure()

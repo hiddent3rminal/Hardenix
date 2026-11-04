@@ -1,11 +1,17 @@
 from collections.abc import Sequence
+import os
 from pathlib import Path
 import subprocess
 
-from core import logger
+from core import config as config_writer, logger
 
 
-def run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str] | None:
+def run_command(
+    command: Sequence[str],
+    *,
+    timeout: float = 120,
+    env: dict[str, str] | None = None,
+) -> subprocess.CompletedProcess[str] | None:
     """Run one command without a shell; return None when it cannot succeed."""
     if isinstance(command, (str, bytes)) or not command:
         raise ValueError("command must be a non-empty sequence of arguments")
@@ -15,12 +21,25 @@ def run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str] | No
         raise TypeError("all command arguments must be strings")
 
     try:
-        result = subprocess.run(
-            command_args,
-            check=True,
-            capture_output=True,
-            text=True,
-        )
+        if env is None:
+            result = subprocess.run(
+                command_args,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+            )
+        else:
+            command_env = os.environ.copy()
+            command_env.update(env)
+            result = subprocess.run(
+                command_args,
+                check=True,
+                capture_output=True,
+                text=True,
+                timeout=timeout,
+                env=command_env,
+            )
     except subprocess.CalledProcessError as error:
         logger.logger.error(
             "Command failed (%s): %s",
@@ -32,6 +51,9 @@ def run_command(command: Sequence[str]) -> subprocess.CompletedProcess[str] | No
         return None
     except OSError:
         logger.logger.exception("Could not execute command: %s", command_args[0])
+        return None
+    except subprocess.TimeoutExpired:
+        logger.logger.error("Command timed out: %s", " ".join(command_args))
         return None
 
     logger.logger.debug("Command executed successfully: %s", " ".join(command_args))
@@ -48,24 +70,17 @@ def apply_sysctl(config: dict[str, object]) -> bool:
         path = Path(config_file)
         previous_contents = path.read_bytes() if path.exists() else None
         logger.logger.info("Writing sysctl configuration to %s", config_file)
-        try:
-            with path.open("w", encoding="utf-8") as file:
-                file.write("# Hardenix Network Hardening\n\n")
-                for key, value in settings.items():
-                    file.write(f"{key} = {value}\n")
-        except OSError:
-            if previous_contents is None:
-                path.unlink(missing_ok=True)
-            else:
-                path.write_bytes(previous_contents)
-            raise
+        contents = "# Hardenix Network Hardening\n\n" + "".join(
+            f"{key} = {value}\n" for key, value in settings.items()
+        )
+        config_writer.atomic_write_text(path, contents)
 
         if run_command(["sysctl", "--system"]) is None:
             try:
                 if previous_contents is None:
                     path.unlink(missing_ok=True)
                 else:
-                    path.write_bytes(previous_contents)
+                    config_writer.atomic_write_bytes(path, previous_contents)
                 if run_command(["sysctl", "--system"]) is None:
                     logger.logger.error(
                         "Runtime sysctl settings may not match the restored configuration."

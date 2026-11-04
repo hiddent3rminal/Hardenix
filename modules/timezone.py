@@ -8,7 +8,7 @@ import time
 from prompt_toolkit import prompt
 from prompt_toolkit.completion import WordCompleter
 
-from core import logger, runner
+from core import config, logger, runner
 
 
 NAME = "timezone"
@@ -26,8 +26,8 @@ def check_existence() -> bool:
 
 
 def install() -> bool:
-    logger.logger.warning("Timezone module does not install time-sync packages.")
-    return False
+    logger.logger.info("Timezone module uses systemd utilities already present on supported systems.")
+    return True
 
 
 def configure() -> bool:
@@ -59,11 +59,6 @@ def configure() -> bool:
 
 def backup() -> list[str]:
     return CONFIG_PATHS
-
-
-def restore() -> bool:
-    logger.logger.error("Timezone configuration restore is not implemented.")
-    return False
 
 
 def _get_property(name: str) -> str | None:
@@ -171,6 +166,14 @@ def _change_time_manually() -> bool:
         print("Failed to change system time.")
         return False
 
+    if current_ntp.lower() == "yes":
+        if runner.run_command(["timedatectl", "set-ntp", "true"]) is None:
+            logger.logger.error(
+                "The time was changed, but the previously enabled NTP service "
+                "could not be re-enabled."
+            )
+            return False
+
     print("System date/time changed successfully.")
     logger.logger.info("System date/time changed to %s %s.", date, time_value)
     return True
@@ -269,19 +272,24 @@ def _change_ntp_server() -> bool:
             lines[setting_index] = f"NTP={new_server}"
 
     try:
-        config_path.write_text("\n".join(lines) + "\n", encoding="utf-8")
+        config.atomic_write_text(config_path, "\n".join(lines) + "\n")
     except OSError:
         logger.logger.exception("Could not write %s.", config_path)
         try:
-            config_path.write_text(original_contents, encoding="utf-8")
+            config.atomic_write_text(config_path, original_contents)
         except OSError:
             logger.logger.exception("Could not restore %s after a write failure.", config_path)
         return False
 
     if runner.run_command(["systemctl", "restart", "systemd-timesyncd"]) is None:
         try:
-            config_path.write_text(original_contents, encoding="utf-8")
-            runner.run_command(["systemctl", "restart", "systemd-timesyncd"])
+            config.atomic_write_text(config_path, original_contents)
+            if runner.run_command(
+                ["systemctl", "restart", "systemd-timesyncd"]
+            ) is None:
+                logger.logger.critical(
+                    "Could not restart systemd-timesyncd after restoring its previous configuration."
+                )
         except OSError:
             logger.logger.exception("Could not roll back the NTP server configuration.")
         print("Failed to restart systemd-timesyncd.")
