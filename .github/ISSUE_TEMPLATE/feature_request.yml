@@ -1,0 +1,23 @@
+name: Feature request
+description: Suggest a service module or improvement
+title: "[Feature]: "
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem or use case
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed behavior
+      description: Include supported distributions, defaults, and any remote-access risks.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety considerations
+      options:
+        - label: I considered backups, validation, rollback, and operator confirmation.

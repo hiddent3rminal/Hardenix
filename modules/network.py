@@ -1,10 +1,11 @@
 import os
-from core import logger
+from core import config, logger
 from core import runner
 import re
 from pathlib import Path
 import shutil
 import ipaddress
+import tempfile
 import yaml
 
 NAME = "network"
@@ -33,13 +34,15 @@ CONFIG_PATHS = [
 
     "/etc/hostname",
 
-    "/etc/systemd/resolved.conf"
+    "/etc/systemd/resolved.conf",
+
+    "/etc/sysctl.d/99-hardenix.conf",
 ]
+NETPLAN_DIR = Path("/etc/netplan")
 
 # Default sysctl values used by the hardening configuration.
 # These settings disable common IPv4 attack vectors and improve host hardening.
 SYSCTL_SETTINGS = {
-    "net.ipv4.ip_forward": "0",
     "net.ipv4.conf.all.accept_redirects": "0",
     "net.ipv4.conf.default.accept_redirects": "0",
     "net.ipv4.conf.all.send_redirects": "0",
@@ -115,24 +118,21 @@ def configure():
 
     try:
 
-        # Apply hostname, DNS, static IP, and kernel hardening in order.
+        # Apply hostname, optional addressing, DNS, and kernel hardening in order.
         if not configure_hostname():
             logger.logger.error(
                 "Hostname configuration failed."
             )
             return False
 
+        if not configure_ip_static():
+            logger.logger.error("Static IPv4 configuration failed.")
+            return False
+
 
         if not configure_dns():
             logger.logger.error(
                 "DNS configuration failed."
-            )
-            return False
-
-
-        if not configure_ip_static():
-            logger.logger.error(
-                "Static IP configuration failed."
             )
             return False
 
@@ -145,7 +145,8 @@ def configure():
 
 
         # Collect a final status snapshot after all changes are applied.
-        status()
+        if not status():
+            logger.logger.warning("Network configuration was applied but status could not be collected.")
 
         logger.logger.info(
             "Network configuration completed successfully."
@@ -167,12 +168,6 @@ def backup():
     # Return the list of paths that should be copied into the backup archive.
     return CONFIG_PATHS
 
-
-
-def restore():
-
-    # Restore logic is not implemented yet.
-    pass
 
 
 def status():
@@ -309,48 +304,16 @@ def configure_hostname():
 
 
     try:
-
-        # Update /etc/hosts so the new hostname resolves correctly locally.
-        with open("/etc/hosts", "r") as file:
-
-            lines = file.readlines()
-
-
-        updated = False
-
-
-        with open("/etc/hosts", "w") as file:
-
-            for line in lines:
-
-                parts = line.split()
-
-                if parts and parts[0] == "127.0.1.1":
-
-                    file.write(
-                        f"127.0.1.1\t{new_hostname}\n"
-                    )
-
-                    updated = True
-
-                else:
-
-                    file.write(line)
-
-
-
-            if not updated:
-
-                file.write(
-                    f"\n127.0.1.1\t{new_hostname}\n"
-                )
-
-
-    except Exception as error:
+        _update_hosts_hostname(Path("/etc/hosts"), current_hostname, new_hostname)
+    except OSError as error:
 
         logger.logger.exception(
             f"Failed to update /etc/hosts: {error}"
         )
+        if runner.run_command(["hostnamectl", "set-hostname", current_hostname]) is None:
+            logger.logger.critical(
+                "Could not restore the previous hostname after /etc/hosts update failed."
+            )
 
         return False
 
@@ -364,13 +327,55 @@ def configure_hostname():
     return True
 
 
+def _update_hosts_hostname(path: Path, old_hostname: str, new_hostname: str) -> None:
+    original = path.read_text(encoding="utf-8")
+    lines = original.splitlines(keepends=True)
+    changed = False
+    output = []
+
+    for line in lines:
+        content, separator, comment = line.partition("#")
+        fields = content.split()
+        if len(fields) >= 2 and fields[0] == "127.0.1.1":
+            aliases = [alias for alias in fields[1:] if alias != old_hostname]
+            if new_hostname not in aliases:
+                aliases.insert(0, new_hostname)
+            rendered = f"{fields[0]}\t{' '.join(aliases)}"
+            if separator:
+                rendered += f" #{comment.rstrip()}"
+            output.append(rendered + ("\n" if line.endswith("\n") else ""))
+            changed = True
+        else:
+            output.append(line)
+
+    if not changed:
+        if output and not output[-1].endswith("\n"):
+            output[-1] += "\n"
+        output.append(f"127.0.1.1\t{new_hostname}\n")
+
+    mode = path.stat().st_mode & 0o777
+    with tempfile.NamedTemporaryFile(
+        mode="w",
+        encoding="utf-8",
+        dir=path.parent,
+        prefix=f".{path.name}.",
+        delete=False,
+    ) as temporary:
+        temporary.writelines(output)
+        temporary_path = Path(temporary.name)
+    try:
+        temporary_path.chmod(mode)
+        os.replace(temporary_path, path)
+    finally:
+        temporary_path.unlink(missing_ok=True)
+
 
 def configure_dns():
 
     # Start DNS configuration and prepare Netplan-related variables.
     logger.logger.info("DNS configuration started.")
 
-    netplan_dir = Path("/etc/netplan")
+    netplan_dir = NETPLAN_DIR
     override_file = netplan_dir / "99-hardenix-dns.yaml"
     netplan_sections = ("ethernets", "wifis", "bonds", "bridges", "vlans", "tunnels")
 
@@ -500,9 +505,10 @@ def configure_dns():
             if not isinstance(device_cfg, dict):
                 section_map[interface] = device_cfg = {}
 
-            device_cfg["dhcp4-overrides"] = {
-                "use-dns": False
-            }
+            dhcp4_overrides = device_cfg.setdefault("dhcp4-overrides", {})
+            if not isinstance(dhcp4_overrides, dict):
+                device_cfg["dhcp4-overrides"] = dhcp4_overrides = {}
+            dhcp4_overrides["use-dns"] = False
 
             nameservers = device_cfg.setdefault("nameservers", {})
             if not isinstance(nameservers, dict):
@@ -515,8 +521,10 @@ def configure_dns():
             else:
                 nameservers.pop("search", None)
 
-            with p.open("w", encoding="utf-8") as f:
-                yaml.safe_dump(data, f, sort_keys=False, default_flow_style=False)
+            config.atomic_write_text(
+                p,
+                yaml.safe_dump(data, sort_keys=False, default_flow_style=False),
+            )
 
             logger.logger.info(f"Updated DNS in existing Netplan file: {path}")
             return True
@@ -556,7 +564,7 @@ def configure_dns():
                 if not backup_path.exists():
                     shutil.copy2(override_file, backup_path)
 
-            override_file.write_text(content, encoding="utf-8")
+            config.atomic_write_text(override_file, content)
             logger.logger.info(f"Wrote DNS override file: {override_file}")
             return True
 
@@ -602,6 +610,17 @@ def configure_dns():
         "Search domains (optional, space/comma separated, Enter to skip): "
     ).strip()
     search_domains = parse_list(raw_search) if raw_search else []
+    for domain in search_domains:
+        labels = domain.rstrip(".").split(".")
+        if not labels or any(
+            not re.fullmatch(
+                r"[A-Za-z0-9](?:[A-Za-z0-9-]{0,61}[A-Za-z0-9])?",
+                label,
+            )
+            for label in labels
+        ):
+            logger.logger.error("Invalid DNS search domain: %s", domain)
+            return False
 
     # Detect the active interface automatically; if that fails, ask the user.
     interface = detect_active_interface()
@@ -611,27 +630,65 @@ def configure_dns():
     if not interface:
         logger.logger.error("No interface selected.")
         return False
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,15}", interface):
+        logger.logger.error("Invalid network interface name.")
+        return False
+
+    if input(
+        "Applying DNS through Netplan may interrupt remote connectivity. "
+        "Continue? (y/N): "
+    ).strip().lower() != "y":
+        logger.logger.info("Netplan DNS changes skipped by user.")
+        return True
 
     section = guess_device_section(interface)
     logger.logger.info(f"Using interface '{interface}' in Netplan section '{section}'.")
 
     # Decide whether to update an existing Netplan entry or create a new override.
     target_path, target_section = find_existing_netplan_target(interface)
+    if target_path and target_section:
+        config_path = Path(target_path)
+    else:
+        config_path = override_file
+    try:
+        config_existed = config_path.exists()
+        original_config = config_path.read_bytes() if config_existed else None
+    except OSError:
+        logger.logger.exception("Could not snapshot Netplan configuration: %s", config_path)
+        return False
 
-    if target_path:
+    def rollback_netplan(reload_network: bool = False) -> None:
+        try:
+            if config_existed and original_config is not None:
+                config.atomic_write_bytes(config_path, original_config)
+            else:
+                config_path.unlink(missing_ok=True)
+            if reload_network:
+                if runner.run_command(["netplan", "generate"]) is None:
+                    logger.logger.error("Could not regenerate the previous Netplan configuration.")
+                elif runner.run_command(["netplan", "apply"]) is None:
+                    logger.logger.error("Could not reapply the previous Netplan configuration.")
+        except OSError:
+            logger.logger.exception("Could not restore Netplan configuration: %s", config_path)
+
+    if target_path and target_section:
         if not update_existing_yaml(target_path, target_section, interface, dns_servers, search_domains):
+            rollback_netplan()
             return False
     else:
         if not write_override_file(interface, section, dns_servers, search_domains):
+            rollback_netplan()
             return False
 
     # Regenerate and apply the Netplan configuration so the DNS values take effect.
     if runner.run_command(["netplan", "generate"]) is None:
         logger.logger.error("netplan generate failed.")
+        rollback_netplan()
         return False
 
     if runner.run_command(["netplan", "apply"]) is None:
         logger.logger.error("netplan apply failed.")
+        rollback_netplan(reload_network=True)
         return False
 
     # Verify that the selected DNS servers are actually active.
@@ -639,11 +696,13 @@ def configure_dns():
 
     if verify is None:
         logger.logger.error("failed to verify DNS status")
+        rollback_netplan(reload_network=True)
         return False
 
     for dns in dns_servers:
         if dns not in verify.stdout:
             logger.logger.error(f"DNS {dns} is not active")
+            rollback_netplan(reload_network=True)
             return False
     logger.logger.info("DNS verification successful")
     logger.logger.info(f"DNS configured successfully for {interface}.")
@@ -652,14 +711,213 @@ def configure_dns():
 
 
 
-def configure_ip_static():
+def configure_ip_static() -> bool:
+    if input(
+        "Configure a static IPv4 address with Netplan? This may interrupt remote "
+        "access; use a console or tested recovery path. (y/N): "
+    ).strip().lower() != "y":
+        logger.logger.info("Static IPv4 configuration skipped by user.")
+        return True
 
-    # Static IP configuration is not implemented yet.
-    pass
+    interface = input("Existing Netplan interface name: ").strip()
+    if not re.fullmatch(r"[A-Za-z0-9_.:-]{1,15}", interface):
+        logger.logger.error("Invalid network interface name.")
+        return False
+    try:
+        address = ipaddress.IPv4Interface(input("Static IPv4 address/CIDR: ").strip())
+    except ValueError:
+        logger.logger.error("Enter a valid IPv4 address with a prefix, e.g. 192.0.2.10/24.")
+        return False
+
+    gateway_input = input("IPv4 gateway (Enter for no default route): ").strip()
+    gateway = None
+    if gateway_input:
+        try:
+            gateway = ipaddress.IPv4Address(gateway_input)
+        except ValueError:
+            logger.logger.error("Enter a valid IPv4 gateway address.")
+            return False
+        if gateway not in address.network or gateway == address.ip:
+            logger.logger.error("Gateway must be a different address within the configured subnet.")
+            return False
+
+    dns_input = input("DNS server IPv4 addresses (optional, comma/space separated): ").strip()
+    dns_servers = []
+    for server in dns_input.replace(",", " ").split():
+        try:
+            dns_servers.append(str(ipaddress.IPv4Address(server)))
+        except ValueError:
+            logger.logger.error("Invalid IPv4 DNS server: %s", server)
+            return False
+
+    netplan_dir = NETPLAN_DIR
+    target_path = None
+    target_section = None
+    for path in sorted((*netplan_dir.glob("*.yaml"), *netplan_dir.glob("*.yml"))):
+        try:
+            data = yaml.safe_load(path.read_text(encoding="utf-8")) or {}
+        except (OSError, yaml.YAMLError):
+            logger.logger.exception("Could not inspect Netplan file %s.", path)
+            return False
+        if not isinstance(data, dict):
+            logger.logger.error("Netplan file %s must contain a YAML mapping.", path)
+            return False
+        network_config = data.get("network")
+        if not isinstance(network_config, dict):
+            continue
+        for section in ("ethernets", "wifis", "bonds", "bridges", "vlans", "tunnels"):
+            devices = network_config.get(section)
+            if isinstance(devices, dict) and interface in devices:
+                target_path = path
+                target_section = section
+                break
+        if target_path is not None:
+            break
+
+    if target_path is None or target_section is None:
+        logger.logger.error(
+            "Static IP setup requires an existing Netplan entry named %s; "
+            "no configuration was changed.",
+            interface,
+        )
+        return False
+    if input(
+        f"Apply {address} to {interface}"
+        f"{f' via {gateway}' if gateway else ''}? "
+        "Type APPLY STATIC IP to continue: "
+    ).strip() != "APPLY STATIC IP":
+        logger.logger.info("Static IPv4 configuration cancelled.")
+        return True
+
+    try:
+        original = target_path.read_bytes()
+        backup_path = target_path.with_suffix(target_path.suffix + ".hardenix.bak")
+        if not backup_path.exists():
+            shutil.copy2(target_path, backup_path)
+        data = yaml.safe_load(original) or {}
+        device = data["network"][target_section][interface]
+        if not isinstance(device, dict):
+            logger.logger.error("Netplan interface configuration must be a mapping.")
+            return False
+
+        device["dhcp4"] = False
+        addresses = device.get("addresses", [])
+        if not isinstance(addresses, list):
+            logger.logger.error("Netplan addresses must be a list.")
+            return False
+        retained_addresses = []
+        for configured_address in addresses:
+            try:
+                ipaddress.IPv4Interface(configured_address)
+            except (ValueError, TypeError):
+                retained_addresses.append(configured_address)
+        device["addresses"] = [*retained_addresses, str(address)]
+        routes = device.get("routes", [])
+        if not isinstance(routes, list):
+            logger.logger.error("Netplan routes must be a list.")
+            return False
+        routes = [
+            route
+            for route in routes
+            if not isinstance(route, dict) or not _is_ipv4_default_route(route)
+        ]
+        if gateway:
+            routes.append({"to": "default", "via": str(gateway)})
+        if routes:
+            device["routes"] = routes
+        else:
+            device.pop("routes", None)
+        device.pop("gateway4", None)
+        if dns_servers:
+            nameservers = device.setdefault("nameservers", {})
+            if not isinstance(nameservers, dict):
+                raise ValueError("Netplan nameservers must be a mapping.")
+            nameservers["addresses"] = dns_servers
+        content = yaml.safe_dump(data, sort_keys=False, default_flow_style=False)
+        config.atomic_write_text(target_path, content)
+    except (OSError, KeyError, TypeError, ValueError, yaml.YAMLError):
+        logger.logger.exception("Could not write static IPv4 Netplan configuration.")
+        return False
+
+    if runner.run_command(["netplan", "generate"]) is None:
+        _rollback_static_netplan(target_path, original, reload_network=False)
+        return False
+    if runner.run_command(["netplan", "apply"], timeout=180) is None:
+        _rollback_static_netplan(target_path, original, reload_network=True)
+        return False
+
+    address_result = runner.run_command(["ip", "-o", "-4", "address", "show", "dev", interface])
+    route_result = (
+        runner.run_command(["ip", "-4", "route", "show", "default", "dev", interface])
+        if gateway
+        else None
+    )
+    address_active = address_result is not None and _is_static_ipv4_active(
+        address_result.stdout,
+        address,
+    )
+    route_active = not gateway or (
+        route_result is not None
+        and str(gateway) in route_result.stdout
+    )
+    if not address_active or not route_active:
+        logger.logger.error("Static IPv4 settings did not become active; rolling back.")
+        _rollback_static_netplan(target_path, original, reload_network=True)
+        return False
+
+    logger.logger.info("Static IPv4 settings applied to %s.", interface)
+    return True
+
+
+def _is_static_ipv4_active(output: str, address: ipaddress.IPv4Interface) -> bool:
+    return re.search(
+        rf"\binet\s+{re.escape(str(address))}(?:\s|$)",
+        output,
+    ) is not None
+
+
+def _is_ipv4_default_route(route: dict) -> bool:
+    destination = route.get("to")
+    if destination == "0.0.0.0/0":
+        return True
+    if destination != "default":
+        return False
+    gateway = route.get("via")
+    if gateway is None:
+        return True
+    try:
+        ipaddress.IPv4Address(gateway)
+    except (ValueError, TypeError):
+        return False
+    return True
+
+
+def _rollback_static_netplan(
+    path: Path,
+    original: bytes,
+    *,
+    reload_network: bool,
+) -> None:
+    try:
+        config.atomic_write_bytes(path, original)
+        if reload_network:
+            if runner.run_command(["netplan", "generate"]) is None:
+                logger.logger.critical("Could not regenerate Netplan after static-IP rollback.")
+            elif runner.run_command(["netplan", "apply"], timeout=180) is None:
+                logger.logger.critical("Could not reapply Netplan after static-IP rollback.")
+    except OSError:
+        logger.logger.exception("Could not restore Netplan file %s.", path)
+        logger.logger.critical("Network configuration may remain partially changed.")
 
     
 
 def kernel_parameters():
+
+    if input(
+        "Apply kernel network settings? These may affect routing/VPN behavior. (y/N): "
+    ).strip().lower() != "y":
+        logger.logger.info("Kernel network hardening skipped by user.")
+        return True
 
     # Build the configuration payload for sysctl hardening and hand it to the runner.
     config = {
@@ -667,7 +925,3 @@ def kernel_parameters():
         "settings": SYSCTL_SETTINGS
     }
     return runner.apply_sysctl(config)
-
-
-
-

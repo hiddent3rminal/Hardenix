@@ -1,23 +1,48 @@
-# Python cache
+# Python
 __pycache__/
 *.py[cod]
-
-# Logs
-logs/
-*.log
-
-# Backup directory
-Hardenix_Backup/
-
-# Virtual environments
-venv/
+*$py.class
+.Python
 .venv/
+venv/
 env/
+ENV/
+pip-wheel-metadata/
+*.egg
+*.egg-info/
+build/
+dist/
+site/
+
+# Tests and tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+
+# Runtime data and logs
+/logs/
+*.log
+/Hardenix_Backup/
+*.zip
 
 # VS Code
 .vscode/
 
-# macOS
+# Editors and operating systems
+.idea/
 .DS_Store
+Thumbs.db
 
-current_status.txt
+# Local environment and secrets
+.env
+.env.*
+!.env.example
+
+# Local status scratch file retained by older checkouts
+/current_status.txt

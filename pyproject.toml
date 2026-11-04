@@ -1,0 +1,48 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "hardenix"
+version = "0.1.0"
+description = "Modular interactive configuration and hardening for Ubuntu and Debian"
+readme = "README.md"
+requires-python = ">=3.10"
+license = {text = "MIT"}
+keywords = ["linux", "hardening", "ubuntu", "debian", "server", "security"]
+authors = [{name = "Amirali"}]
+dependencies = [
+    "prompt-toolkit>=3.0",
+    "PyYAML>=6.0",
+]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: Console",
+    "Intended Audience :: System Administrators",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: POSIX :: Linux",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: System :: Systems Administration",
+]
+
+[project.scripts]
+hardenix = "main:main"
+
+[project.urls]
+Homepage = "https://github.com/hiddent3rminal/Hardenix"
+Repository = "https://github.com/hiddent3rminal/Hardenix"
+Issues = "https://github.com/hiddent3rminal/Hardenix/issues"
+Changelog = "https://github.com/hiddent3rminal/Hardenix/releases"
+
+[tool.setuptools]
+py-modules = ["main"]
+
+[tool.setuptools.packages.find]
+include = ["core*", "modules*", "workflow*", "templates*"]
+
+[tool.setuptools.package-data]
+templates = ["*.md"]

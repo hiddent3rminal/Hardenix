@@ -1,11 +1,2 @@
-time 
-sys 
-os 
-logger
-subproccess
-yaml
-ipaddress
-shutil
-pathlib 
-re
-prompt_toolkit
+prompt-toolkit>=3.0
+PyYAML>=6.0
