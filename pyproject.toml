@@ -13,7 +13,7 @@ keywords = ["linux", "hardening", "ubuntu", "debian", "server", "security"]
 authors = [{name = "Amirali"}]
 dependencies = [
     "prompt-toolkit>=3.0",
-    "PyYAML>=6.0",
+    "PyYAML>=6.0.3",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
