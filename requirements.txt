@@ -1,2 +1,2 @@
-prompt-toolkit>=3.0
+prompt-toolkit>=3.0.53
 PyYAML>=6.0
