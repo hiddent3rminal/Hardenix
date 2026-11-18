@@ -12,7 +12,7 @@ license = {text = "MIT"}
 keywords = ["linux", "hardening", "ubuntu", "debian", "server", "security"]
 authors = [{name = "Amirali"}]
 dependencies = [
-    "prompt-toolkit>=3.0",
+    "prompt-toolkit>=3.0.53",
     "PyYAML>=6.0",
 ]
 classifiers = [
